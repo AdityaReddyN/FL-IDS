@@ -38,51 +38,63 @@ but the five context records were initially at the repository root.
 **Type:** engineering convenience
 **Consequences / risks:** Links and documentation must use the `docs/` paths.
 
-### D-004 — Attack proportion (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-004 — Attack proportion (APPROVED; 2026-10-16)
 **Context:** Li et al. Eq. 10 provides a density/strength-aware attack proportion;
 the paper's 0.05% flight share is too small for this dataset.
 **Options considered:** Paper's fixed 0.05% share; a fixed larger share; Eq. 10 sweep.
-**Decision:** Proposed: use Eq. 10 with tau swept over {0.005, 0.01, 0.05, 0.1}.
+**Decision:** Approved: use Eq. 10 with tau swept over {0.005, 0.01, 0.05, 0.1}.
 **Why:** Preserves the paper's parameterisation while providing enough examples.
 **Type:** implementation choice
-**Consequences / risks:** Requires human approval and an explicit documented deviation.
+**Consequences / risks:** Explicit documented deviation from the paper's 0.05% share.
 
-### D-005 — Amplitude and stealth (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-005 — Amplitude and stealth (APPROVED; 2026-10-16)
 **Context:** The paper supplies Eqs. 11-13 but not all numeric constants.
-**Decision:** Proposed: derive amplitudes from historical per-attribute statistics,
+**Decision:** Approved: derive amplitudes from historical per-attribute statistics,
 state the Eq. 11 interpretation, and define three stealth tiers via Gamma/zeta;
 add Eq. 12 Gaussian noise.
 **Why:** Uses available paper structure without inventing unspecified constants.
 **Type:** implementation choice
-**Consequences / risks:** Requires human approval and calibration validation.
+**Consequences / risks:** Requires calibration validation.
 
-### D-006 — Two detection tracks (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-006 — Two detection tracks (APPROVED, Option C; 2026-10-16)
 **Context:** The paper treats labels as evaluation-only, while the current v2 baseline is supervised.
-**Decision:** Proposed: evaluate novelty/semi-supervised detection trained on mostly normal
-data alongside supervised multiclass detection as an upper bound; include the former in headline FL results.
+**Decision:** Track A is the primary headline: novelty detection is trained on normal
+data only in centralized and federated settings, with attack labels used only for
+evaluation, following Li et al. Track B is a supervised multiclass upper-bound
+reference. Both tracks use identical aircraft splits and evaluation sets.
 **Why:** Better matches the paper's stated label usage.
 **Type:** implementation choice
-**Consequences / risks:** Requires human approval and expands Phase 3/5 scope.
+**Consequences / risks:** Expands Phase 3/5 scope; comparisons must be reported fairly.
 
-### D-007 — Rename v2 replay label (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-007 — Rename v2 replay label (APPROVED; 2026-10-16)
 **Context:** v2 `replay_freeze_sim` is a fixed-value manipulation, not delayed replay under Eq. 8.
-**Decision:** Proposed: retain v2 labels for baseline provenance but name the Phase 1 class
+**Decision:** Retain v2 labels for baseline provenance but name the Phase 1 class
 accurately and add true 300 s delayed replay on lat/lon/baroaltitude at minimum.
 **Why:** Avoids conflating distinct paper attack families.
 **Type:** paper-grounded
-**Consequences / risks:** Requires human approval; no mutation of v2 artifacts.
+**Consequences / risks:** No mutation of v2 artifacts.
 
-### D-008 — Enable ghost and DoS scope (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-008 — Staged ghost and DoS scope (APPROVED; 2026-10-16)
 **Context:** Extracted details specify ghost and DoS variants absent from the prior accessible text.
-**Decision:** Proposed: implement ghost variants and DoS period/whole/cycle variants;
-keep ghosts with their source split and reserve synthetic ICAO IDs. Audit DoS missingness shortcuts.
+**Decision:** Stage 1 implements manipulation and replay only. Stage 2 then implements
+ghost variants and DoS period/whole/cycle variants; ghosts stay with their source
+split and use reserved synthetic ICAO IDs. Audit DoS missingness shortcuts.
 **Why:** The source now gives enough high-level procedure to implement transparently.
 **Type:** implementation choice
-**Consequences / risks:** Requires human approval; physical plausibility and shortcut risks remain.
+**Consequences / risks:** Physical plausibility and shortcut risks remain; ghost/DoS code is deferred.
 
-### D-009 — Episode-level injection (PROPOSED, UNAPPROVED; 2026-10-16)
+### D-009 — Episode-level injection (APPROVED; 2026-10-16)
 **Context:** Paper attacks occur in attack windows within flights, while reference code also uses whole-flight attacks.
-**Decision:** Proposed: support attack episodes within flights as well as whole-flight episodes.
+**Decision:** Support attack episodes within flights as well as whole-flight episodes.
 **Why:** Preserves temporal attack structure and enables spanning future windows.
 **Type:** paper-grounded
-**Consequences / risks:** Requires human approval and episode provenance.
+**Consequences / risks:** Requires episode provenance.
+
+### D-010 — Frozen-window diagnostic definition (2026-10-16)
+**Context:** Phase 0 needs a read-only check for stationary or on-ground normal v2 windows.
+**Decision:** Count a window as constant only when all 30 source rows have finite
+lat/lon/velocity and each feature has zero range. Report `onground=True` separately;
+define "effectively frozen" as their union.
+**Why:** Avoids silently treating missing values as stationary and preserves the two signals.
+**Type:** engineering convenience
+**Consequences / risks:** This is a descriptive diagnostic, not a causal test of model error.

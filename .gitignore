@@ -2,3 +2,5 @@ data/
 results/
 logs/
 docs/references/
+__pycache__/
+*.pyc

@@ -70,3 +70,46 @@ and known v2 shortcuts remain material limitations.
 **Decisions made:** None; D-004--D-009 remain proposed and unapproved.
 **Next steps:** Human reviews Gate 0; record approval; only then design Phase 1.
 **Questions for human:** Do you approve Gate 0 and authorize Phase 1 planning?
+
+### 2026-10-16 — Session 3 — Codex — Phase 0
+**Goal:** Finalise E-001 records and diagnose frozen/on-ground normal v2 windows.
+**Done:** Confirmed E-001 from `results/E-001/run1/test_metrics.json`; added
+`scripts/diagnose_v2_normal_windows.py`, a read-only source-window diagnostic.
+**Ran / verified:** `validate_sequences_v2.py` already passed for the reproduced
+v2 directory. The diagnostic ran separately on train/val/test source windows.
+**NOT verified:** Frozen/on-ground prevalence is not a causal explanation for
+the classifier metrics. Parquet logical equality remains unverified; v2 arrays,
+labels, and client IDs are equal as reported by the reproduction comparison.
+**Results:** E-001 is done: accuracy 0.664533, macro-F1 0.648890, clean FPR
+0.726333, best epoch 9. Metrics and confusion matrix exactly match the prior
+baseline. Normal windows: constant 682/17,000 (4.01%), any onground 1,904/17,000
+(11.20%), effectively frozen union 2,451/17,000 (14.42%).
+**Problems / surprises:** The command runner required split-wise diagnostic runs;
+the result totals combine the three completed split outputs.
+**Decisions made:** D-010.
+**Next steps:** Human reviews Gate 0; record explicit approval; begin no Phase 1
+work unless approval is granted.
+**Questions for human:** Do you approve Gate 0?
+
+### 2026-10-16 — Session 4 — Codex — Gate 0 / Phase 1 design
+**Goal:** Apply requested Phase 0 corrections, record Gate 0 approval, and create
+only the Phase 1 v3 attack design for review.
+**Done:** Corrected E-001 provenance; approved D-004--D-009, with D-006 Track A
+novelty primary/Track B upper bound and D-008 staged. Added read-only comparison,
+scale, normal-window, and false-positive diagnostic scripts. Created the v3 design
+document; no attack-generation code was added.
+**Ran / verified:** E-001 and prior prediction CSV SHA-256 both equal
+`16F1660F45C37FFF7CEF6CFBB9AA5671430F1ADA3638F546F6D88850F332430D`.
+Cross-check of 1,521 normal-to-freeze false positives: frozen union 77 (5.06%),
+on-ground 53 (3.48%), any core missingness 157 (10.32%).
+**NOT verified:** The Python version of the original E-001 training process is
+not stored in its config. False-positive overlaps are descriptive, not causal.
+No Phase 1 attack code, v3 data, or v3 experiment has run.
+**Results:** Gate 0 approved by the human. Phase 1 is limited to design review
+until `docs/attack_v3_design.md` receives explicit approval.
+**Problems / surprises:** None.
+**Decisions made:** D-004--D-009 approved; D-010 retained.
+**Next steps:** Human reviews attack_v3_design; record approval or requested
+changes; only then implement Stage 1 manipulation/replay.
+**Questions for human:** Do you approve the v3 design draft and its stated
+configuration-review requirement before attack code?
