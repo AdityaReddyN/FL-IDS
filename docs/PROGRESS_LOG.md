@@ -113,3 +113,23 @@ until `docs/attack_v3_design.md` receives explicit approval.
 changes; only then implement Stage 1 manipulation/replay.
 **Questions for human:** Do you approve the v3 design draft and its stated
 configuration-review requirement before attack code?
+
+### 2026-10-16 — Session 5 — Codex — Phase 1 design revision
+**Goal:** Revise the approved design structure and draft the requested Stage 1
+configuration without writing attack code.
+**Done:** Rewrote `attack_v3_design.md` to cover boundary labels/recall, replay
+subtypes, shared eligibility, quotas, density regions, meter-scale tiers, altitude
+variants, strict Track A, and reproducibility. Added proposed config draft.
+**Ran / verified:** Measured airborne observed 10-second source steps: lat p50/p99
+469.25/4,305.97 m; lon p50/p99 950.64/5,371.12 m; baro p99 182.88 m; geo p99
+457.20 m. No data or result artifact was changed.
+**NOT verified:** All new thresholds, grid size, quotas, and tier values are proposed
+starting values only. No YAML parser is installed in the current runtime, so the
+draft's syntax was manually reviewed but not parser-validated. No attack-generation,
+sequence-v3, or model code was written.
+**Results:** No experiment run.
+**Problems / surprises:** None.
+**Decisions made:** D-011--D-013 proposed.
+**Next steps:** Human reviews revised design/config; record approval or revisions;
+only then implement Stage 1 attack-generation code.
+**Questions for human:** Do you approve the revised design and YAML draft?

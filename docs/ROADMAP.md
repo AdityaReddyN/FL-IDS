@@ -24,6 +24,8 @@ through with `~~` and explain in PROGRESS_LOG).
   Track A novelty primary and Track B upper bound, correct replay naming,
   staged ghost/DoS scope, and episode-level injection.
 - [x] Design doc: `docs/attack_v3_design.md` (schema, parameters, which are paper-grounded vs implementation choices; human review pending before code)
+- [x] Draft `configs/attack_v3_stage1.yaml` (proposed tolerances, regions, quotas,
+  tiers, and reproducibility settings; human review pending before code)
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation
@@ -81,6 +83,7 @@ through with `~~` and explain in PROGRESS_LOG).
 - [ ] Median, trimmed mean, Krum aggregation
 - [ ] (optional) DP / update compression
 - [ ] Held-out region and unseen-attack evaluation
+- [ ] Contaminated Track A novelty-training scenario with a declared attack-row fraction
 - [ ] **GATE 6**
 
 ## Phase 7 — Evaluation and figures

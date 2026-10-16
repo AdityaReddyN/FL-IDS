@@ -1,0 +1,124 @@
+# REVIEW DRAFT ONLY — no attack code may consume this until human approval.
+version: attack_v3_stage1_draft_1
+status: proposed_unapproved
+global_seed: 42
+injection_realization_global_seeds: [42, 43, 44]
+
+input:
+  cleaned_table: data/processed/opensky_clean_v1.parquet
+  input_content_fingerprint: sha256_required_at_runtime
+  source_type: decoded_opensky_state_vectors_not_raw_adsb_messages
+output:
+  root: data/attack_generation_v3
+  dataset_id_template: stage1_seed_{global_seed}
+
+splits:
+  unit: icao24
+  fractions: {train: 0.70, val: 0.15, test: 0.15}
+  split_before_injection: true
+
+region:
+  # Starting control grid; revise only with explicit approval.
+  grid_cell_degrees: 5.0
+  density_time_half_window_seconds: 30
+  rho: unique_aircraft_with_valid_rows_in_grid_time_window
+  rho0: min_rho_divided_by_q99_nonzero_rho_clipped_to_1
+  modes: [density_scaled, uniform_per_subairspace_control]
+
+eligibility:
+  require_airborne: true
+  contact_lag_seconds:
+    require_finite: true
+    min: 0.0
+    max: 30.0
+  target_fields_must_be_observed: true
+  replay:
+    delay_seconds: 300
+    timestamp_tolerance_seconds: 5
+    require_same_aircraft_and_segment: true
+    require_prior_source_eligible: true
+  distinguishability:
+    # Proposed physical threshold; must be validated before results are reported.
+    minimum_horizontal_source_change_meters: 100.0
+    minimum_altitude_source_change_meters: 30.0
+  matched_normal_controls_use_identical_type_specific_predicate: true
+
+episodes:
+  duration_seconds: {min: 90, max: 300}
+  max_per_segment: 3
+  minimum_inter_episode_gap_seconds: 600
+  onset: {mode: linear_ramp, steps: 3}
+  offset: {mode: linear_ramp, steps: 3}
+  labels: [none, onset, interior, offset]
+
+attacks:
+  stage1_types: [constant_deviation, random_gaussian_deviation, gradual_deviation, replay_partial_field, replay_full_field, freeze_fixed_value]
+  replay_partial_fields: [lat, lon, baroaltitude]
+  replay_full_fields: [lat, lon, velocity, heading, vertrate, baroaltitude, geoaltitude]
+  altitude_variants: [baro_only, baro_plus_geo]
+  preserve_metadata_unmodified: [onground, contact_lag_seconds, contact_lag_missing]
+  metadata_model_inputs: false
+
+prevalence:
+  tau_sweep: [0.005, 0.01, 0.05, 0.10]
+  theta: 0.5
+  realistic_prevalence_mode: density_scaled
+  quota_mode:
+    enabled: true
+    qualifying_window_rule: at_least_one_attacked_row
+    target_windows_per_type_tier_split: {train: 2000, val: 500, test: 500}
+    minimum_test_windows_per_type_tier_cell: 500
+    report_realized_counts_per_cell: true
+
+# Measured on airborne, observed 10-second source steps. Starting values only.
+tiers:
+  calibration:
+    lat_step_meters: {p50: 469.25, p99: 4305.97}
+    lon_step_meters: {p50: 950.64, p99: 5371.12}
+    baro_step_meters: {p50: 0.0, p99: 182.88}
+    geo_step_meters: {p50: 0.0, p99: 457.20}
+  subtle:
+    lat_meters: 469.25
+    lon_meters: 950.64
+    baro_meters: 45.72
+    geo_meters: 114.30
+    basis: 1.0_x_horizontal_p50_and_0.25_x_vertical_p99
+    gaussian_noise_kappa: 0.20
+  moderate:
+    lat_meters: 2152.99
+    lon_meters: 2685.56
+    baro_meters: 91.44
+    geo_meters: 228.60
+    basis: 0.5_x_p99
+    gaussian_noise_kappa: 0.10
+  blatant:
+    lat_meters: 4305.97
+    lon_meters: 5371.12
+    baro_meters: 182.88
+    geo_meters: 457.20
+    basis: 1.0_x_p99
+    gaussian_noise_kappa: 0.00
+
+track_a:
+  training_windows_require_zero_attacked_rows: true
+  model_selection: normal_validation_loss_only
+  threshold_calibration: normal_validation_target_fpr_only
+  attack_labels_used_in_training_or_hyperparameters: false
+  full_unfiltered_normal_fpr_reported: true
+  matched_eligible_control_fpr_reported: true
+track_b:
+  role: supervised_multiclass_upper_bound
+  same_splits_and_evaluation_sets_as_track_a: true
+  held_out_attack_types_or_tiers_apply_here: true
+
+phase2_safeguards:
+  delta_features_within_segment_only: true
+  median_imputation_inside_windows: forbidden
+  contact_lag_label_leak_check_required: true
+  shortcut_audits: [missingness, window_position, summary_statistics, deltas, onground_stale, contact_lag]
+
+release_gate:
+  require_before_after_trajectory_plots: true
+  require_plausibility_report: true
+  require_manifest_region_and_cell_counts: true
+  require_three_injection_realizations_for_ci: true

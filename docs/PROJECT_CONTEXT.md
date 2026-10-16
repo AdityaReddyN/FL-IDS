@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-16, Session 3.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-16, Session 5.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -10,7 +10,8 @@ in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.56
 
 ## Current phase
 Phase 1 design review. Gate 0 approved; attack code is not authorized until the
-human approves `docs/attack_v3_design.md`.
+human approves the revised `docs/attack_v3_design.md` and
+`configs/attack_v3_stage1.yaml`.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -38,9 +39,10 @@ human approves `docs/attack_v3_design.md`.
 - v3 plan (paper-grounded, partial): constant / Gaussian / gradual deviation,
   300 s delayed replay. Ghost injection and DoS deferred. Exact equations from
   Li et al. are unavailable; numeric ranges are implementation choices.
-- `docs/attack_v3_design.md` is a review draft only: Stage 1 is manipulation and
-  true delayed replay; ghost/DoS are Stage 2. No attack code exists or is
-  authorized before human approval of the design.
+- `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml` are review
+  drafts only. Stage 1 is manipulation/replay, with boundary labels, matched
+  eligibility controls, quotas, regional density controls, and meter-scale tiers;
+  ghost/DoS are Stage 2. No attack code exists or is authorized before approval.
 
 ## Models and FL
 - Centralized LSTM (1 layer, hidden 64), seed 42: test accuracy 0.664533,
@@ -81,6 +83,9 @@ human approves `docs/attack_v3_design.md`.
 - D-004--D-009 are approved. Manipulation/replay are Phase 1 stage 1; ghost/DoS
   are deferred to stage 2. Track A novelty detection is primary; Track B supervised
   multiclass is an upper-bound reference on identical splits/evaluation sets.
+- D-011--D-013 are proposed review amendments: boundary-aware evaluation, a shared
+  eligibility predicate, regional quota/density modes, starting physical tiers,
+  zero-attack Track A training, and reproducibility controls.
 
 ## Where things are
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`

@@ -98,3 +98,41 @@ define "effectively frozen" as their union.
 **Why:** Avoids silently treating missing values as stationary and preserves the two signals.
 **Type:** engineering convenience
 **Consequences / risks:** This is a descriptive diagnostic, not a causal test of model error.
+
+### D-011 — Boundary-aware detectability and eligibility (PROPOSED; 2026-10-16)
+**Context:** Review requires a clearer distinction between detectable attack boundaries
+and within-episode signals, plus eligibility-matched controls.
+**Decision:** Proposed: persist per-step onset/interior/offset labels; report boundary
+and interior-only recall separately; define partial-field and full-field replay; use
+one type-parameterized airborne/not-stale/observed/history eligibility predicate for
+attacks and matched normal controls while retaining full-population normal FPR.
+**Why:** Constant offsets and full-field replay may be unobservable to a single stream
+away from their boundaries; matching controls prevents eligibility shortcuts.
+**Type:** implementation choice
+**Consequences / risks:** Ramped onset and control eligibility require human approval of
+the draft tolerances and do not create a guarantee of detector observability.
+
+### D-012 — Episode quota, density, and physical tier draft (PROPOSED; 2026-10-16)
+**Context:** Review requires sufficient per-cell evaluation counts, explicit Eq. 10
+density definitions, regional reporting, and physically interpretable tier starts.
+**Decision:** Proposed: allow bounded multiple episodes per segment; keep tau-scaled
+data as realistic prevalence and add a per-(type,tier,split) window-quota mode with
+at least 500 test windows per cell. Define rho from time-local grid-cell aircraft
+counts and rho0 by its nonzero p99; retain uniform-per-sub-airspace as a control.
+Use the measured p50/p99 horizontal step changes as starting meter-scale tiers.
+**Why:** Supports power, regional transparency, and calibration against observed motion.
+**Type:** implementation choice
+**Consequences / risks:** Values in the draft YAML require validation and approval;
+quota mode is not prevalence-realistic.
+
+### D-013 — Strict Track A and reproducibility draft (PROPOSED; 2026-10-16)
+**Context:** Review requires zero-contamination novelty training and stronger provenance.
+**Decision:** Proposed: Track A training windows contain zero attacked rows; choose
+models with normal validation loss only and calibrate normal-only FPR. Hold-out attack
+type experiments apply to Track B. Store natural keys/input fingerprints, derive
+segment seeds from the global seed, require three injection realizations, and add a
+contaminated Track A scenario in Phase 6.
+**Why:** Prevents label leakage into the primary novelty claim and supports repeatable CIs.
+**Type:** implementation choice
+**Consequences / risks:** Increases computation and makes Track A/Track B objectives
+intentionally different; comparisons remain on identical splits/evaluation sets.
