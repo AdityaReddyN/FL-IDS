@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-16, Session 5.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-17, Session 6.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,7 +9,7 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 design review. Gate 0 approved; attack code is not authorized until the
+Phase 1 calibration-design review. Gate 0 approved; attack code is not authorized until the
 human approves the revised `docs/attack_v3_design.md` and
 `configs/attack_v3_stage1.yaml`.
 
@@ -39,10 +39,17 @@ human approves the revised `docs/attack_v3_design.md` and
 - v3 plan (paper-grounded, partial): constant / Gaussian / gradual deviation,
   300 s delayed replay. Ghost injection and DoS deferred. Exact equations from
   Li et al. are unavailable; numeric ranges are implementation choices.
-- `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml` are review
-  drafts only. Stage 1 is manipulation/replay, with boundary labels, matched
-  eligibility controls, quotas, regional density controls, and meter-scale tiers;
-  ghost/DoS are Stage 2. No attack code exists or is authorized before approval.
+- `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml` are calibration
+  review drafts only. Stage 1 is manipulation/replay, with residual-gated
+  eligibility/detectability, boundary labels, ambiguous-window exclusion, matched
+  controls, quotas, regional density controls, and physical tiers; ghost/DoS are
+  Stage 2. No attack code exists or is authorized before approval.
+- Read-only Stage 1 calibration: 260 occupied 5-degree cells; 60-second-cell rho
+  q50/q90/q99 = 5/41/151. Base eligible rows are 51.91%/50.25%/50.47% of
+  train/val/test, and 300-second replay eligibility is 41.44%/39.89%/40.39%.
+  All-eligible window capacity (30 rows, stride 10) is 80,979/17,188/17,310;
+  replay capacity is 59,923/12,505/12,738. These are feasibility upper bounds,
+  not injected datasets or validated quotas.
 
 ## Models and FL
 - Centralized LSTM (1 layer, hidden 64), seed 42: test accuracy 0.664533,
@@ -83,9 +90,10 @@ human approves the revised `docs/attack_v3_design.md` and
 - D-004--D-009 are approved. Manipulation/replay are Phase 1 stage 1; ghost/DoS
   are deferred to stage 2. Track A novelty detection is primary; Track B supervised
   multiclass is an upper-bound reference on identical splits/evaluation sets.
-- D-011--D-013 are proposed review amendments: boundary-aware evaluation, a shared
-  eligibility predicate, regional quota/density modes, starting physical tiers,
-  zero-attack Track A training, and reproducibility controls.
+- D-011--D-016 are proposed review amendments. D-014--D-016 add residual-gated
+  detectability, corrected density-aware eta, physical tiers including a gross
+  positive control, quota/capacity requirements, fixed aircraft splits, five
+  realizations when feasible, cluster bootstrap, and the two-hour coverage limit.
 
 ## Where things are
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`

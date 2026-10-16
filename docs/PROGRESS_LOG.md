@@ -133,3 +133,14 @@ sequence-v3, or model code was written.
 **Next steps:** Human reviews revised design/config; record approval or revisions;
 only then implement Stage 1 attack-generation code.
 **Questions for human:** Do you approve the revised design and YAML draft?
+
+### 2026-10-17 — Session 6 — Codex — Phase 1 calibration revision
+**Goal:** Run the requested read-only Stage 1 calibration and revise only the attack design/YAML; do not write attack-generation code.
+**Done:** Added `scripts/calibrate_v3_stage1.py`, revised `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml`, and logged proposed D-014--D-016. No attack code, data, or result artifact was written.
+**Ran / verified:** The calibration read immutable `opensky_clean_v1.parquet` and `split_aircraft.json`. It reported 260 occupied 5-degree cells; rho (60-second cells) q50/q90/q99=5/41/151; base eligible row yields 51.91%/50.25%/50.47% and replay yields 41.44%/39.89%/40.39% for train/val/test. All-eligible/replay upper-bound 30-row-stride-10 capacities are 80,979/59,923 train, 17,188/12,505 val, and 17,310/12,738 test. It found 1,083,575/1,219,040 replay candidates with at least one measurable current-versus-300-s change. Geoaltitude vertical-step q99=47.244 m/s, q999=101.346 m/s, max=3,364.992 m/s; 1,521 steps exceed 100 m/s.
+**NOT verified:** Proposed residual thresholds, quotas, tier magnitudes, eta parameters, and five-realization feasibility have not been tested by injection; the capacity figures are upper bounds. Full per-cell counts are produced by `--grid-detail` but were not committed as generated data. No YAML parser was available for parser validation; the draft was manually inspected.
+**Results:** No experiment run. The revised design defines eta as a candidate-start fraction and makes density matter through bounded rho-reference/rho scaling; it specifies residual-gated replay/freeze, a gross positive-control tier, ambiguous windows, fixed aircraft splits, and cluster bootstrap.
+**Problems / surprises:** The original exact sliding-window density calculation exceeded the interactive runner's time limit. It was replaced with the documented fixed 60-second cell-time definition, which completes read-only and matches the revised design.
+**Decisions made:** D-014--D-016 proposed only.
+**Next steps:** Human reviews the calibration revision and YAML. Do not write attack-generation code until approval.
+**Questions for human:** Do you approve this calibration revision and config draft for Phase 1 implementation?

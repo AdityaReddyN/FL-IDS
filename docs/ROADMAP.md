@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — design review pending**
+**Current phase: 1 — calibration revision review pending**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -26,6 +26,9 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Design doc: `docs/attack_v3_design.md` (schema, parameters, which are paper-grounded vs implementation choices; human review pending before code)
 - [x] Draft `configs/attack_v3_stage1.yaml` (proposed tolerances, regions, quotas,
   tiers, and reproducibility settings; human review pending before code)
+- [x] Read-only Stage 1 calibration/feasibility report: 5-degree grid/density,
+  split eligibility and capacity, residuals, replay-change candidates, and
+  geoaltitude outliers (reviewed thresholds remain proposed)
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

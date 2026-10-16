@@ -1,215 +1,76 @@
-# Attack V3 Design — Revised Review Draft
+# Attack V3 Design — Calibration Revision Draft
 
-**Status:** design/configuration review only. No attack-generation code is
-authorized until the human approves this document and
-`configs/attack_v3_stage1.yaml`.
+**Status:** design/configuration review only. No attack-generation code is authorized until human approval of this document and `configs/attack_v3_stage1.yaml`.
 
-## Scope and claims
+## Scope and provenance
 
-V3 is a labelled, row-level **data-layer simulation** from decoded OpenSky
-state vectors, not raw ADS-B messages. Labels are synthetic; no result can
-establish operational aviation-IDS performance, RF/message replay fidelity, or
-signal-level security. Source and v1/v2 artifacts are immutable.
+V3 is a labelled, row-level **data-layer simulation** from decoded OpenSky state vectors, not raw ADS-B messages. Labels are synthetic; no result establishes operational IDS performance, RF/message replay fidelity, or signal-level security. Stage 1 is manipulation and 300-second delayed replay. Stage 2 may add ghost injection and DoS only after separate review (D-008). The source covers only 2017-06-05 00:00:00--01:59:50 UTC; this two-hour interval is a material limitation.
 
-Stage 1 contains manipulation and true 300-second delayed replay. Stage 2,
-after separate review, may contain ghost injection and DoS (D-008).
+The output root will be `data/attack_generation_v3/<dataset_id>/`, with `config.json`, `manifest.json`, plausibility report, before/after trajectory plots, and row/episode/rejection/step-label tables. Every output row retains `source_row_id`, `(icao24, segment_id, time, segment_row_offset)` natural key, cleaned-input SHA-256 content fingerprint, schema fingerprint, original and modified state, labels, parameters, and replay provenance. Episodes record their grid region, requested/effective amplitude, seed derivation, and acceptance/rejection reason.
 
-## Output, provenance, and reproducibility
+Reuse `data/sequences_v2/split_aircraft.json` unchanged for all realizations. Segment randomness derives from `SHA-256(global_seed | icao24 | segment_id)` then episode index. Produce five independent global-seed injection realizations if capacity permits. If fewer are produced, all confidence intervals must state the insufficient-realization caveat. Use aircraft-level cluster bootstrap, never independent row/window bootstrap.
 
-Output root: `data/attack_generation_v3/<dataset_id>/`, containing
-`config.json`, `manifest.json`, plausibility report, before/after plots, and:
+## Labels and evaluation population
 
-| Table | Granularity | Required fields |
+Each attacked row is labelled `onset`, `interior`, or `offset`; normal rows are `none`. A boundary window has at least one onset/offset row, and an interior-only window has attacked rows but no boundary. Report recall separately for boundary and interior-only windows as well as overall recall and normal FPR.
+
+A window is an attack window only if it has at least the configured attacked-row count and reaches the configured effective amplitude or residual over the declared interval. A window with attack overlap that fails either condition is `ambiguous`; exclude it from supervised evaluation and Track A training, and report its count/reason. Single-stream detectors have no general basis to detect a constant offset or full-field replay away from boundaries; report that limitation explicitly.
+
+## Eligibility and kinematic detectability
+
+For adjacent same-segment rows, let observed horizontal displacement be `d_i`, expected displacement be `e_i = v_i dt_i (cos(h_i), sin(h_i))`, and kinematic residual be `r_i = ||d_i - e_i||`. Measure it only where `0 < dt <= 30 s`, position/velocity/heading are observed, and both rows are airborne and non-stale.
+
+One type-parameterized predicate applies identically to attack candidates, matched normal controls, and the shortcut audit: every target row is airborne, has finite `contact_lag_seconds` in [0, 30], and has target fields observed; each residual pair is measurable. Replay also requires same-aircraft/same-segment eligible source rows at t-300 s within 5 s. Partial-field replay further requires current versus replay-source difference in velocity >=1 m/s, heading >=1 degree, or vertical rate >=0.5 m/s, plus the configured residual exceedance for the required consecutive interior pairs. Freeze/replay must meet effective-amplitude/residual rules across the complete interior, not one row. Report FPR both on matched eligible normal controls and on the full unfiltered normal population.
+
+Injection never changes missingness, `onground`, `contact_lag_seconds`, `contact_lag_missing`, or related metadata; they are provenance/audit values and not model inputs.
+
+## Attack families and exact parameter semantics
+
+Manipulation includes constant, Gaussian random, and gradual additive deviation. Horizontal attacks use one metre magnitude and a deterministic random bearing, converted to lat/lon at target latitude. `baro_only` modifies barometric altitude only. `baro_plus_geo` applies one shared signed metre shift to both altitude fields.
+
+| Subtype | Modified fields | Observable signal |
 |---|---|---|
-| `attacked_rows.parquet` | every row | `row_id`, `source_row_id`, `natural_key_json`, `input_content_sha256`, `icao24`, `segment_id`, `time`, source and modified state columns, `is_attack_row`, `attack_type`, `attack_subtype`, `episode_id`, `episode_position`, `replay_source_row_id`, `replay_delay_seconds`, `attack_parameters_json` |
-| `modified_row_provenance.parquet` | changed row | identifiers above; original/modified values JSON, changed features JSON, parameter set, selection method, candidate ID, validation status/reason |
-| `episodes.parquet` | episode | episode/target IDs, region, start/end source IDs/times, type/subtype/tier, requested/effective delay, seed derivation, parameters, acceptance/rejection reason |
-| `rejected_candidates.parquet` | attempted candidate | candidate, target, requested interval/parameters, eligibility result, rejection stage/reason |
-| `step_labels.parquet` | every output row | `row_id`, `episode_id`, `is_attack_row`, `attack_type`, `attack_subtype`, `episode_position` |
+| `replay_partial_field` | lat/lon and optional baro altitude | position residual versus retained velocity/heading and/or vertical-rate inconsistency, plus boundaries |
+| `replay_full_field` | configured complete state | onset/offset and external evidence; no guaranteed interior single-stream signal |
+| `freeze_fixed_value` | **lat/lon only** | residual versus retained velocity/heading, growing anchor displacement, and boundaries |
 
-The natural key is `(icao24, segment_id, time, segment_row_offset)`; it
-disambiguates a source row independently of Parquet row ordering. Every output
-also stores the SHA-256 content fingerprint of the cleaned input and its schema
-fingerprint alongside `source_row_id`.
+Freeze is not replay. Its anchor is the last fully eligible lat/lon before onset and remains fixed. It never changes velocity, heading, vertical rate, altitude, or metadata. Replay tier means its achieved current-versus-replayed horizontal error/residual band at full-mix interior; delay remains 300 s. Freeze tier means its achieved anchor-error/residual band across interior. Candidate selection rejects intervals that do not reach their assigned band.
 
-A global seed is required. The random stream for a segment is deterministically
-derived as `SHA-256(global_seed | icao24 | segment_id)`, then episode index,
-so unrelated segments do not change if another segment is rejected. At least
-three independent global-seed injection realizations are required for reported
-confidence intervals; manifests identify all realization IDs.
+On replay onset, use `x'=(1-a)x_current+a*x_replay`; on offset reverse the mixing. Interpolate heading on the shortest angular arc. Freeze uses that mixing only for lat/lon toward/from its anchor. Thus `a=0` outside and `a=1` on interior rows. For gradual deviation, interior index `j` among `n` has `g(j)=j/(n-1)` (or 1 if n=1); onset/offset mixing applies outside interior. Gaussian random deviation has independent zero-mean noise with `sigma_deviation=kappa*tier_horizontal_magnitude`; optional per-step noise uses its separately configured `sigma_noise_meters`.
 
-## Per-step and window labels
+## Density, prevalence, quotas, and capacity
 
-An attacked step receives `episode_position`:
+The calibration uses 5-degree cells and non-overlapping 60-second cell-time windows. `rho(c)` is unique aircraft in candidate c's cell/window. `rho_ref` is the median nonzero rho over the declared eligible-candidate calibration population, calculated once for the dataset.
 
-- `onset`: first ramped or abrupt attack steps;
-- `interior`: fully applied attack steps excluding boundaries;
-- `offset`: final ramped or abrupt attack steps;
-- `none`: normal step.
+The following Eq. 10-inspired operationalization is an implementation choice, not recovery of an inaccessible paper constant:
 
-The configuration supports a ramped onset (and symmetric offset) with a linear
-multiplier across a declared number of steps. A window is `boundary` if it
-contains any onset/offset step; it is `interior_only` if it contains attack
-steps but no boundary. Report recall separately for boundary and interior-only
-windows, as well as overall recall and normal FPR.
+`m(c) = clip(rho_ref / rho(c), m_min, m_max)`
 
-This distinction is necessary: a single-stream detector has no general basis
-to detect a constant offset away from episode boundaries. It likewise cannot
-reliably detect full-field replay away from boundaries, because the replayed
-stream can remain internally consistent. Such limitations must be reported,
-not treated as detector failures alone.
+`eta_requested(c) = min(eta_cap, tau * log(1 + theta) * m(c))`
 
-## Stage 1 attack families and observable signals
+`eta` is the selection probability/fraction of **eligible episode-start candidates** in that cell-time stratum before spacing/detectability rejection; it is not a row fraction. This retains inverse density dependence without the previous rho/q99 cancellation or a global 1/q99 reduction. Manifest/reporting must give requested eta mean/min/max, accepted episodes divided by eligible starts (realized eta), and attacked rows divided by eligible rows, globally and by region. Uniform-per-sub-airspace sampling is the control.
 
-### Manipulation
+Several non-overlapping episodes may appear in a segment. Realistic-prevalence mode uses the approved tau sweep. Quota mode fills every `(type, subtype_or_variant, tier, split)` cell to qualifying-window, episode, and unique-aircraft targets. It prints requested, capacity, and realized counts per cell and fails rather than silently underfilling unless a human accepts the capacity exception. Capacity is an upper bound: it does not promise that amplitude, spacing, or cell quotas are feasible.
 
-Implement constant, Gaussian random, and increased/gradual additive deviation
-on observed location/altitude fields. No v2 fixed offsets are reused. Altitude
-variants are distinct labels/parameters:
+## Calibration-based proposed tiers
 
-- `baro_only`: modify barometric altitude only;
-- `baro_plus_geo`: apply the declared shift to both barometric and geographic
-  altitude.
+Read-only calibration found high-speed (>=200 m/s) residual p50/p95/p99 = 116.47/2,513.34/5,522.31 m. Tier checks are speed-band-specific; these are physical starting values, not validated stealth claims.
 
-### Replay subtypes
-
-True replay follows Li et al. Eq. 8: at current time `t`, values come from the
-same aircraft and segment at `t - 300 s`, within the configured timestamp
-tolerance. No edge filling is allowed.
-
-| Subtype | Replaced fields | Detectable-in-principle signal |
-|---|---|---|
-| `replay_partial_field` | lat, lon, baroaltitude minimum | inconsistency between location/altitude and unmodified velocity, heading, vertical rate, or implied kinematics; boundary discontinuity |
-| `replay_full_field` | all state features selected in config | primarily onset/offset discontinuity and temporal lag relative to external evidence; no reliable within-episode single-stream signal |
-
-### Fixed-value freeze
-
-`freeze_fixed_value` is a manipulation subtype, not replay. It retains a
-separate label and provenance. A freeze is eligible only when the original
-airborne stream changes over the interval; natural stationary behavior is never
-given a freeze label.
-
-## Shared eligibility and matched controls
-
-Define one parameterized predicate `eligible_episode(type, fields, interval)`:
-
-1. every target row is airborne (`onground != True`);
-2. every target row is not stale: finite `contact_lag_seconds` within configured
-   bounds;
-3. all target fields are observed on every target row;
-4. for replay, every target row has same-aircraft/same-segment prior history
-   at the 300-second delay within configured tolerance, and the replay source
-   satisfies the same airborne/not-stale/observed requirements;
-5. the source trajectory has configured non-trivial motion where a replay or
-   freeze needs to be distinguishable.
-
-The predicate is applied identically to type-matched normal control windows in
-the shortcut audit and matched evaluation sets. Report FPR on those matched
-normal controls **and** on the full, unfiltered normal population. This keeps
-eligibility filtering from hiding operationally relevant false alarms.
-
-Injection does not alter raw missingness, `onground`, `contact_lag_seconds`,
-`contact_lag_missing`, or related metadata. These are provenance/diagnostic
-fields, not model inputs. A derived `is_stale` flag records its threshold and
-missing-data policy. Natural on-ground/stale data are excluded from attack
-eligibility but retained in the full normal population.
-
-## Episode counts, proportion, and regions
-
-Several non-overlapping episodes may occur in a segment, separated by the
-configured buffer. Two complementary dataset modes are required:
-
-- **density-scaled realistic prevalence:** Eq. 10 selects episodes according
-  to `tau`; it is the prevalence-aware evaluation set;
-- **quota mode:** iteratively fills each `(attack_type, tier, split)` cell to a
-  target number of qualifying windows after windowing. The starting proposed
-  minimum is **500 test windows per cell**; train/validation targets are in the
-  draft YAML. The manifest prints requested and realised episode, attacked-row,
-  and qualifying-window counts per cell.
-
-For Eq. 10, partition the measured bounding box into fixed grid sub-airspaces.
-At an episode start, `rho` is the unique aircraft count with any valid source
-row in that grid cell during the configured symmetric time window. `rho_0` is
-`min(rho / q99_nonzero_rho, 1)`, where `q99_nonzero_rho` is measured over all
-eligible cell-time observations in the source dataset. The manifest stores the
-calibration population and quantile. The density-scaled mode uses the paper's
-form `eta = tau * rho_0 * log(1 + theta) / rho`; a uniform-per-sub-airspace
-mode is a control that samples eligible episode candidates equally by grid cell.
-
-Every episode records grid ID/bounds and region. Reports give source rows,
-eligible rows, attacked rows, episodes, and realised prevalence per region.
-
-## Starting amplitude tiers — proposed, not validated
-
-The tier calibration is an implementation choice under D-005. On the immutable
-cleaned table, airborne observed 10-second steps measured:
-
-| Axis | p50 absolute step | p99 absolute step |
-|---|---:|---:|
-| latitude equivalent | 469.25 m | 4,305.97 m |
-| longitude equivalent | 950.64 m | 5,371.12 m |
-
-Starting horizontal constant/ramp end amplitudes are proposed as:
-
-| Tier | Latitude | Longitude | Basis |
+| Tier | Horizontal magnitude / residual target | Shared baro+geo shift | Role |
 |---|---:|---:|---|
-| subtle | 469 m | 951 m | 1.0 × p50 |
-| moderate | 2,153 m | 2,686 m | 0.5 × p99 |
-| blatant | 4,306 m | 5,371 m | 1.0 × p99 |
+| subtle | 500 m | 50 m | near natural residual scale |
+| moderate | 2,500 m | 100 m | about high-speed p95 |
+| blatant | 5,500 m | 250 m | about high-speed p99 |
+| gross positive control | 11,000 m | 500 m | sensitivity check, not stealth |
 
-Signs/directions are sampled deterministically from each segment seed. Baro and
-geo shifts use separately measured p99 vertical changes and remain parameterized
-by the altitude variant. Gaussian noise and Gamma are recorded but do not claim
-validated stealth. These are starting values to validate with plausibility,
-detectability, and shortcut reports before any scientific result is reported.
+`geoaltitude` has vertical-step q99 47.244 m/s and maximum 3,364.992 m/s; it cannot be treated as a clean physical bound.
 
-## Sequence v3 and Phase 2 safeguards
+## Phase 2 safeguards and detection tracks
 
-Aircraft splits happen before windowing; normal/attacked copies and all episodes
-from an aircraft remain in one split. Required safeguards:
+Aircraft splitting precedes windowing. Phase 2 must derive deltas only within segments, never median-impute inside a window, retain on-ground/stale flags for audit, preserve replay/freeze detectability definitions, and audit `contact_lag_seconds` and similar metadata for leakage before use. Shortcut audits include missingness, window position, summary statistics, deltas, on-ground/stale, and contact lag.
 
-1. derive delta features only within a segment; starts/gaps are undefined,
-   never bridged;
-2. never median-impute within a window; use train-only global preprocessing or
-   explicit masks while preserving original missingness;
-3. retain on-ground/stale flags as provenance and audit variables;
-4. preserve separate labels and detectability criteria for replay and freeze;
-5. test `contact_lag_seconds` for label leakage before it may become a feature.
+**Track A** is primary novelty detection: training windows contain zero attacked rows (including overlap) and no ambiguous windows; model selection uses normal validation loss only and thresholding uses normal validation FPR only. **Track B** is the supervised multiclass upper bound on the identical splits/evaluation sets; held-out attack types apply only to Track B. Phase 6 adds a declared contaminated-Track-A-training scenario.
 
-The shortcut audit includes missingness-only, window-position-only,
-summary-statistic-only, delta-only, on-ground/stale-only, and contact-lag-only
-baselines. Failure blocks Phase 2 acceptance.
+The Stage 1 release gate requires tests for deterministic seeds, provenance, isolation, spacing, edits only inside episodes, replay delay/labels, quota/rejection accounting; plausibility/availability/region/capacity reports; requested-versus-realized eta; cluster CIs; and before/after plots.
 
-## Detection tracks and evaluation
-
-**Track A — primary novelty track.** A training window must contain **zero
-attacked rows**, including rows overlapping any episode. Train only on normal
-training-aircraft windows. Choose models using normal validation reconstruction/
-novelty loss only, and calibrate thresholds on declared normal validation FPR;
-no attack-labelled validation set is used for Track A hyperparameters. Attack
-labels are evaluation-only. Centralized and federated Track A follow identical
-normal-only rules.
-
-**Track B — supervised multiclass upper bound.** Uses the same aircraft splits
-and evaluation sets as Track A but may train on synthetic labels. Held-out attack
-types/tier combinations are a Track B generalization experiment; they do not
-apply to Track A, which trains on no attack types.
-
-Both tracks report balanced and realistic-prevalence evaluations, full-population
-and matched-control normal FPR, per-type/tier/boundary recall, and confidence
-intervals over at least three injection realizations. Phase 6 adds a
-contaminated-Track-A-training scenario with a declared fraction of attack rows
-to measure novelty-model robustness.
-
-## Validation and release gate
-
-Tests cover deterministic segment seeds, natural-key/fingerprint persistence,
-no cross-aircraft/segment contamination, multiple-episode non-overlap, no edits
-outside accepted episodes, replay source/delay correctness, labels/positions,
-quota accounting, and rejection accounting. Reports cover geodesic steps,
-implied speed, acceleration, turn/vertical rates, availability/on-ground/stale
-distributions, region prevalence, and before/after trajectory plots. The plots
-are required for the Stage 1 release gate.
-
-**Requested approval:** approve this revised design and the companion draft
-configuration before attack code is written.
+**Requested approval:** approve this calibration revision and YAML before any attack-generation code is written.

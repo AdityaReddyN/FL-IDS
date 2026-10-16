@@ -136,3 +136,24 @@ contaminated Track A scenario in Phase 6.
 **Type:** implementation choice
 **Consequences / risks:** Increases computation and makes Track A/Track B objectives
 intentionally different; comparisons remain on identical splits/evaluation sets.
+
+### D-014 — Residual-gated attack eligibility and ambiguity handling (PROPOSED; 2026-10-17)
+**Context:** Read-only calibration showed substantial natural position-versus-velocity/heading residuals that vary by speed band. A row-level field-preserving replay or freeze needs a measurable inconsistency, not only valid source values.
+**Decision:** Proposed: use a shared airborne/non-stale/observed predicate plus same-segment kinematic-residual measurement. Partial replay additionally requires a measurable change at 300 s in speed, heading, or vertical rate and residual exceedance across consecutive interior pairs. Freeze changes lat/lon only and uses a fixed pre-onset anchor. Windows require minimum attacked rows and effect; insufficient overlap/effect is `ambiguous` and excluded from evaluation and Track A training.
+**Why:** Makes detectability criteria explicit and applies the same eligibility population to attacked and matched-normal shortcut-audit windows.
+**Type:** implementation choice
+**Consequences / risks:** Natural residual tails are large, so proposed thresholds and episode capacity need validation before any result is reported.
+
+### D-015 — Density-aware eta, calibrated tiers, and quota feasibility (PROPOSED; 2026-10-17)
+**Context:** The previous rho0 form algebraically cancelled local density and imposed a 1/q99 scale reduction. Calibration measured rho q99=151 in 5-degree/60-second cells and available normal/replay capacity by split.
+**Decision:** Proposed: eta is the candidate-start selection fraction, with `tau*log(1+theta)*clip(rho_ref/rho)` bounded by an eta cap; report requested and realized eta and row prevalence by region. Use residual-calibrated horizontal tiers of 500 m, 2,500 m, 5,500 m, and 11,000 m gross positive control; add quotas for qualifying windows, episodes, and unique aircraft, with capacity shortfall failure.
+**Why:** Retains a measurable density effect, avoids silent quota underfill, and makes calibration values physical and auditable.
+**Type:** implementation choice
+**Consequences / risks:** This is Eq. 10-inspired, not a claimed recovery of inaccessible paper constants. Capacity is an upper bound until injection rejection is implemented.
+
+### D-016 — Fixed splits, five realizations, and bounded data claim (PROPOSED; 2026-10-17)
+**Context:** Comparisons across injection realizations need stable split membership and valid uncertainty units; the source covers two hours only.
+**Decision:** Proposed: reuse `split_aircraft.json` for every realization, require five injection seeds when feasible, use aircraft-cluster bootstrap CIs, and state an explicit insufficient-realization caveat if fewer are available. State the 2017-06-05 00:00--02:00 UTC coverage limitation in design/limitations reporting.
+**Why:** Prevents split variation from being confused with injection variation and avoids overclaiming temporal coverage.
+**Type:** implementation choice
+**Consequences / risks:** Five complete realizations may be computationally costly; no causal/generalizability claim follows from this limited source period.
