@@ -1,76 +1,61 @@
-# Attack V3 Design — Calibration Revision Draft
+# Attack V3 Design — Extended-Calibration Review Draft
 
-**Status:** design/configuration review only. No attack-generation code is authorized until human approval of this document and `configs/attack_v3_stage1.yaml`.
+**Status:** review only. No attack-generation code is authorized until this document and `configs/attack_v3_stage1.yaml` are approved.
 
-## Scope and provenance
+## Scope, provenance, and limitation
 
-V3 is a labelled, row-level **data-layer simulation** from decoded OpenSky state vectors, not raw ADS-B messages. Labels are synthetic; no result establishes operational IDS performance, RF/message replay fidelity, or signal-level security. Stage 1 is manipulation and 300-second delayed replay. Stage 2 may add ghost injection and DoS only after separate review (D-008). The source covers only 2017-06-05 00:00:00--01:59:50 UTC; this two-hour interval is a material limitation.
+V3 is a labelled row-level **data-layer simulation** of decoded OpenSky state vectors, not raw ADS-B messages. Labels are synthetic and cannot establish operational aviation-IDS performance, RF/message replay fidelity, or signal security. Stage 1 is manipulation and delayed replay; ghost injection and DoS remain Stage 2 (D-008). The data covers only 2017-06-05 00:00:00--01:59:50 UTC.
 
-The output root will be `data/attack_generation_v3/<dataset_id>/`, with `config.json`, `manifest.json`, plausibility report, before/after trajectory plots, and row/episode/rejection/step-label tables. Every output row retains `source_row_id`, `(icao24, segment_id, time, segment_row_offset)` natural key, cleaned-input SHA-256 content fingerprint, schema fingerprint, original and modified state, labels, parameters, and replay provenance. Episodes record their grid region, requested/effective amplitude, seed derivation, and acceptance/rejection reason.
+The future output will retain source/modified values, `source_row_id`, natural key `(icao24, segment_id, time, segment_row_offset)`, input content/schema fingerprints, labels, parameters, replay provenance, region, and acceptance/rejection reasons. It will include rows, episodes, provenance, rejections, and step labels. No such output exists yet.
 
-Reuse `data/sequences_v2/split_aircraft.json` unchanged for all realizations. Segment randomness derives from `SHA-256(global_seed | icao24 | segment_id)` then episode index. Produce five independent global-seed injection realizations if capacity permits. If fewer are produced, all confidence intervals must state the insufficient-realization caveat. Use aircraft-level cluster bootstrap, never independent row/window bootstrap.
+Reuse `data/sequences_v2/split_aircraft.json` for every realization. Extended calibration confirmed coverage of all 14,279 cleaned aircraft, with no extra or missing split IDs. Derive segment random streams from `SHA-256(global_seed | icao24 | segment_id)`, then episode index. Require five injection seeds when feasible; otherwise disclose the CI caveat. Bootstrap by aircraft, never rows/windows.
 
-## Labels and evaluation population
+## Labels and one effective-window rule
 
-Each attacked row is labelled `onset`, `interior`, or `offset`; normal rows are `none`. A boundary window has at least one onset/offset row, and an interior-only window has attacked rows but no boundary. Report recall separately for boundary and interior-only windows as well as overall recall and normal FPR.
+Rows are `none`, `onset`, `interior`, or `offset`. Report boundary-window and interior-only recall separately. An attacked evaluation window is defined by one rule: it has at least 5 attacked rows **and** at least 3 effect-qualified rows. An overlapped window that fails this rule is `ambiguous` and is excluded from supervised evaluation and Track A training. This replaces the prior imprecise “tier target or residual” rule.
 
-A window is an attack window only if it has at least the configured attacked-row count and reaches the configured effective amplitude or residual over the declared interval. A window with attack overlap that fails either condition is `ambiguous`; exclude it from supervised evaluation and Track A training, and report its count/reason. Single-stream detectors have no general basis to detect a constant offset or full-field replay away from boundaries; report that limitation explicitly.
+Effect qualification is attack-specific but always uses interior eligible pairs. Retained-kinematics horizontal attacks use post-attack horizontal residual at least the speed-band p95; altitude attacks use post-attack altitude residual at least the vertical-rate-band p95; full-field replay uses a valid 300-second source mapping because no honest single-stream interior residual criterion exists. Full-field replay results must remain boundary/interior stratified.
 
-## Eligibility and kinematic detectability
+Single-stream detectors have no general basis to detect a constant offset or full-field replay away from a boundary. This is a study limitation, not a model-failure claim.
 
-For adjacent same-segment rows, let observed horizontal displacement be `d_i`, expected displacement be `e_i = v_i dt_i (cos(h_i), sin(h_i))`, and kinematic residual be `r_i = ||d_i - e_i||`. Measure it only where `0 < dt <= 30 s`, position/velocity/heading are observed, and both rows are airborne and non-stale.
+## Eligibility versus effect conditions
 
-One type-parameterized predicate applies identically to attack candidates, matched normal controls, and the shortcut audit: every target row is airborne, has finite `contact_lag_seconds` in [0, 30], and has target fields observed; each residual pair is measurable. Replay also requires same-aircraft/same-segment eligible source rows at t-300 s within 5 s. Partial-field replay further requires current versus replay-source difference in velocity >=1 m/s, heading >=1 degree, or vertical rate >=0.5 m/s, plus the configured residual exceedance for the required consecutive interior pairs. Freeze/replay must meet effective-amplitude/residual rules across the complete interior, not one row. Report FPR both on matched eligible normal controls and on the full unfiltered normal population.
+Eligibility applies identically to attacks and matched normal controls. Each target row and required adjacent pair must be airborne, have finite `contact_lag_seconds` in [0, 30], have required fields observed, remain in one segment, and have `0 < dt <= 30 s`. Replay additionally needs an eligible same-aircraft/same-segment source at t-300 s within 5 s. Controls are maneuver-matched: speed and absolute vertical-rate bands, and replay source-current maneuver-change category are matched.
 
-Injection never changes missingness, `onground`, `contact_lag_seconds`, `contact_lag_missing`, or related metadata; they are provenance/audit values and not model inputs.
+Effect conditions apply to attacks only. Partial-field replay requires current/source difference of at least 1 m/s speed, 1 degree heading, or 0.5 m/s vertical rate, plus three consecutive interior pairs exceeding the speed-band p95 hypothetical partial-replay residual. Retained-kinematics manipulation/freeze requires three such interior pairs. Full-field replay has no interior residual gate; report it as eligibility-only, separately from the gated partial-field subset. This is the required gated/ungated replay comparison.
 
-## Attack families and exact parameter semantics
+Injection never changes `onground`, missingness, `contact_lag_seconds`, or related metadata. They are provenance/audit fields, not model inputs.
 
-Manipulation includes constant, Gaussian random, and gradual additive deviation. Horizontal attacks use one metre magnitude and a deterministic random bearing, converted to lat/lon at target latitude. `baro_only` modifies barometric altitude only. `baro_plus_geo` applies one shared signed metre shift to both altitude fields.
+## Replay and freeze
 
-| Subtype | Modified fields | Observable signal |
-|---|---|---|
-| `replay_partial_field` | lat/lon and optional baro altitude | position residual versus retained velocity/heading and/or vertical-rate inconsistency, plus boundaries |
-| `replay_full_field` | configured complete state | onset/offset and external evidence; no guaranteed interior single-stream signal |
-| `freeze_fixed_value` | **lat/lon only** | residual versus retained velocity/heading, growing anchor displacement, and boundaries |
+The only paper-grounded replay setting is a 300-second same-aircraft delay. Replay has no horizontal-error tiers: source/current position error is mainly speed times 300 seconds, rather than a controlled stealth magnitude. Report replay by speed band. An optional labelled 60/120/300-second delay sweep is disabled by default; it is a sensitivity analysis and cannot replace the 300-second headline setting.
 
-Freeze is not replay. Its anchor is the last fully eligible lat/lon before onset and remains fixed. It never changes velocity, heading, vertical rate, altitude, or metadata. Replay tier means its achieved current-versus-replayed horizontal error/residual band at full-mix interior; delay remains 300 s. Freeze tier means its achieved anchor-error/residual band across interior. Candidate selection rejects intervals that do not reach their assigned band.
+Partial-field replay changes lat/lon and optional barometric altitude while retaining velocity, heading, and vertical rate. Full-field replay changes the configured complete state and is evaluated by boundary/interior strata. Onset uses linear `x'=(1-a)x_current+a*x_replay`; offset reverses it, with circular heading interpolation on the shortest arc.
 
-On replay onset, use `x'=(1-a)x_current+a*x_replay`; on offset reverse the mixing. Interpolate heading on the shortest angular arc. Freeze uses that mixing only for lat/lon toward/from its anchor. Thus `a=0` outside and `a=1` on interior rows. For gradual deviation, interior index `j` among `n` has `g(j)=j/(n-1)` (or 1 if n=1); onset/offset mixing applies outside interior. Gaussian random deviation has independent zero-mean noise with `sigma_deviation=kappa*tier_horizontal_magnitude`; optional per-step noise uses its separately configured `sigma_noise_meters`.
+Freeze changes **lat/lon only**. Its anchor is the last fully eligible position before onset and remains fixed; velocity, heading, vertical rate, altitude, and metadata remain unchanged. Freeze tiers are durations: 90, 120, 180, and 300 s. Error-based freeze/replay tiers are infeasible because error is driven by natural speed times the chosen duration, not independently controlled amplitude. Freeze uses the same linear onset/offset mix toward/from anchor.
 
-## Density, prevalence, quotas, and capacity
+## Manipulation, Gaussian deviation, and altitude
 
-The calibration uses 5-degree cells and non-overlapping 60-second cell-time windows. `rho(c)` is unique aircraft in candidate c's cell/window. `rho_ref` is the median nonzero rho over the declared eligible-candidate calibration population, calculated once for the dataset.
+Horizontal constant/gradual deviations use one metre magnitude and a deterministic random bearing, converted to lat/lon at target latitude. The gradual interior multiplier is `j/(n-1)` (or 1 for `n=1`). Gaussian random deviation has its own explicit per-tier standard deviation in metres; it is not derived from kappa. Kappa is reserved for the separately declared Eq. 12 noise factor.
 
-The following Eq. 10-inspired operationalization is an implementation choice, not recovery of an inaccessible paper constant:
+Altitude residual is `abs((alt_i-alt_(i-1))-vertical_rate_i*dt)`. Calibration uses vertical-rate bands. For normal low/mid vertical-rate data, geo-altitude residual p95 is approximately 33/127 m and p99 is 482/426 m for 0--5/5--15 m/s. Thus baro-only starting shifts are 25/100/200/500 m and shared `baro_plus_geo` starting shifts are 35/150/500/1,000 m (subtle/moderate/blatant/gross). These are proposed implementation values, not physical-stealth claims.
 
-`m(c) = clip(rho_ref / rho(c), m_min, m_max)`
+Leave `geoaltitude` untouched when its source pair has residual above the calibration global q99.9 screen of 2,880.360 m; exclude that row and its adjacent pair from `baro_plus_geo` eligibility without imputing/repairing it. Calibration found 1,494 such pairs. `baro_only` does not modify geoaltitude.
 
-`eta_requested(c) = min(eta_cap, tau * log(1 + theta) * m(c))`
+## Eta, regions, and quotas
 
-`eta` is the selection probability/fraction of **eligible episode-start candidates** in that cell-time stratum before spacing/detectability rejection; it is not a row fraction. This retains inverse density dependence without the previous rho/q99 cancellation or a global 1/q99 reduction. Manifest/reporting must give requested eta mean/min/max, accepted episodes divided by eligible starts (realized eta), and attacked rows divided by eligible rows, globally and by region. Uniform-per-sub-airspace sampling is the control.
+Eta is the fraction/probability of **eligible aircraft-segments** targeted; episodes are then placed within selected segments. It is distinct from row prevalence. The optional density-scaled sensitivity mode is `eta_requested(s)=min(eta_cap, tau*log(1+theta)*clip(rho_ref/rho(s),m_min,m_max))`, where rho(s) is unique aircraft in s’s 5-degree/60-second cell and rho_ref is a single median nonzero calibration value. This removes the earlier rho/q99 cancellation. For every tau, report requested segment eta, realized targeted-segment eta, and requested versus realized attacked-row prevalence globally/by region.
 
-Several non-overlapping episodes may appear in a segment. Realistic-prevalence mode uses the approved tau sweep. Quota mode fills every `(type, subtype_or_variant, tier, split)` cell to qualifying-window, episode, and unique-aircraft targets. It prints requested, capacity, and realized counts per cell and fails rather than silently underfilling unless a human accepts the capacity exception. Capacity is an upper bound: it does not promise that amplitude, spacing, or cell quotas are feasible.
+**Uniform-per-sub-airspace is the primary FL dataset mode.** It samples eligible aircraft-segments uniformly by cell and uses tau as requested segment share. Density-scaled mode is secondary sensitivity/prevalence data. Every episode records region and reports region prevalence.
 
-## Calibration-based proposed tiers
+Quota mode sets episodes and unique aircraft first, per `(type, subtype_or_variant, tier, split)` cell: train 300/200, validation 150/100, and test **at least 150/100**. Windows are derived, not independently forced. With 30-row windows, stride 10, and the 5-row rule, a 50,000-start sample estimates 3.248 evaluable windows per nominal 120-second replay episode; 150 test episodes therefore imply about 487 qualifying windows. Freeze means are 2.861/3.156/3.756/4.953 windows per evaluable 90/120/180/300-second episode. Manifest output must include requested, feasible, and realized episodes/aircraft/windows for every cell; shortfall fails unless explicitly waived.
 
-Read-only calibration found high-speed (>=200 m/s) residual p50/p95/p99 = 116.47/2,513.34/5,522.31 m. Tier checks are speed-band-specific; these are physical starting values, not validated stealth claims.
+Residual-gated partial replay has an upper-bound 11,712 nominal 120-second test starts, with 27/233/354/196 unique aircraft for 0--50/50--100/100--200/200+ m/s starts. This does not prove every cell can meet quota after spacing.
 
-| Tier | Horizontal magnitude / residual target | Shared baro+geo shift | Role |
-|---|---:|---:|---|
-| subtle | 500 m | 50 m | near natural residual scale |
-| moderate | 2,500 m | 100 m | about high-speed p95 |
-| blatant | 5,500 m | 250 m | about high-speed p99 |
-| gross positive control | 11,000 m | 500 m | sensitivity check, not stealth |
+## Tracks, oracle check, and release gate
 
-`geoaltitude` has vertical-step q99 47.244 m/s and maximum 3,364.992 m/s; it cannot be treated as a clean physical bound.
+Track A novelty training uses only zero-attacked-row, non-ambiguous windows; selection uses normal validation loss and thresholding normal validation FPR. Track B is the supervised multiclass upper bound on identical splits/evaluation sets. Held-out attack types apply only to Track B. Phase 6 adds a declared contaminated Track A scenario.
 
-## Phase 2 safeguards and detection tracks
+The release gate requires an oracle detector using speed-band p95 residual. The read-only 10,000-row abrupt-boundary trial obtained recall 0.0891/0.6284/0.9994/0.9997 for 500/2,500/5,500/11,000-m manipulation tiers. Require gross abrupt-boundary recall >=0.99 before release; this is a generator sanity check, not a model result. Also require isolation/delay/label/spacing tests, plausibility/capacity reports, eta/prevalence accounting, aircraft-cluster CIs, and before/after plots.
 
-Aircraft splitting precedes windowing. Phase 2 must derive deltas only within segments, never median-impute inside a window, retain on-ground/stale flags for audit, preserve replay/freeze detectability definitions, and audit `contact_lag_seconds` and similar metadata for leakage before use. Shortcut audits include missingness, window position, summary statistics, deltas, on-ground/stale, and contact lag.
-
-**Track A** is primary novelty detection: training windows contain zero attacked rows (including overlap) and no ambiguous windows; model selection uses normal validation loss only and thresholding uses normal validation FPR only. **Track B** is the supervised multiclass upper bound on the identical splits/evaluation sets; held-out attack types apply only to Track B. Phase 6 adds a declared contaminated-Track-A-training scenario.
-
-The Stage 1 release gate requires tests for deterministic seeds, provenance, isolation, spacing, edits only inside episodes, replay delay/labels, quota/rejection accounting; plausibility/availability/region/capacity reports; requested-versus-realized eta; cluster CIs; and before/after plots.
-
-**Requested approval:** approve this calibration revision and YAML before any attack-generation code is written.
+**Requested approval:** approve this extended-calibration design and YAML before any attack-generation code is written.

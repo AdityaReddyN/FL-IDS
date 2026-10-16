@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — calibration revision review pending**
+**Current phase: 1 — extended-calibration review pending**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -29,6 +29,9 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Read-only Stage 1 calibration/feasibility report: 5-degree grid/density,
   split eligibility and capacity, residuals, replay-change candidates, and
   geoaltitude outliers (reviewed thresholds remain proposed)
+- [x] Extended read-only calibration JSON: residuals by dt/band, replay gate
+  capacity and maneuver mix, altitude residuals, split coverage, window yield,
+  and in-memory oracle-boundary trial (all resulting values remain proposed)
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

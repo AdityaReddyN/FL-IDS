@@ -144,3 +144,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-014--D-016 proposed only.
 **Next steps:** Human reviews the calibration revision and YAML. Do not write attack-generation code until approval.
 **Questions for human:** Do you approve this calibration revision and config draft for Phase 1 implementation?
+
+### 2026-10-17 — Session 7 — Codex — Phase 1 extended calibration
+**Goal:** Revise the design/YAML without attack code and save the requested extended read-only calibration JSON.
+**Done:** Reworked `scripts/calibrate_v3_stage1.py` as a read-only diagnostic; wrote `docs/calibration_v3_stage1.json`; revised the design/YAML; and appended proposed D-017--D-018, including the requested D-015/D-016 supersession cross-reference.
+**Ran / verified:** The diagnostic read only immutable cleaned data and the fixed split, then wrote its JSON report under `docs/`. Split coverage is 14,279/14,279 aircraft. Replay eligibility is 1,219,040 rows; partial-field replay after the three-consecutive residual/maneuver gate is 69,959 rows. Gated nominal 120-second test starts by speed band are 633/2,983/5,397/2,699 (0--50/50--100/100--200/200+ m/s). A 50,000-start sample estimates 3.248 evaluable windows per 120-second replay episode. The in-memory 10,000-row abrupt-boundary oracle gives gross-tier recall 0.9997.
+**NOT verified:** No episode placement, spacing, quota fulfillment, attack labels, attack data, model, or detector was run. Capacity is an upper bound. The oracle is a deterministic residual threshold, not a learned IDS. Proposed YAML values have not been approved or parser-validated.
+**Results:** Replay is now fixed at paper-grounded 300 s in the headline design; freeze tiers are durations; Gaussian deviation uses independent metre sigmas; eta targets aircraft-segments; uniform-per-sub-airspace is primary for FL; altitude shifts derive from altitude residuals with a geoaltitude glitch screen.
+**Problems / surprises:** The initially selected bundled Python lacked a Parquet engine; the repository `.venv` has pinned PyArrow and completed the read-only run. No dependency was changed.
+**Decisions made:** D-017--D-018 proposed only; D-015/D-016 cross-reference the superseded D-012/D-013 draft portions.
+**Next steps:** Human reviews the extended design, draft YAML, and calibration JSON. Do not write attack-generation code until approval.
+**Questions for human:** Do you approve the extended-calibration design/configuration for Phase 1 implementation?

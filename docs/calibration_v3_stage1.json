@@ -1,0 +1,919 @@
+{
+  "altitude_residual_meters_by_vertical_rate_then_dt": {
+    "baroaltitude": {
+      "0_5": {
+        "10_20": {
+          "n": 1094834,
+          "q50_0": 2.1335999999992,
+          "q90_0": 10.76960000000022,
+          "q95_0": 20.828000000000145,
+          "q99_0": 58.82639999999993,
+          "q99_9": 1219.2000000000007
+        },
+        "20_30": {
+          "n": 1378,
+          "q50_0": 5.384800000000565,
+          "q90_0": 20.624800000000803,
+          "q95_0": 41.107359999999794,
+          "q99_0": 118.93804000000004,
+          "q99_9": 466.7837248000114
+        }
+      },
+      "15_plus": {
+        "10_20": {
+          "n": 28767,
+          "q50_0": 14.833600000000104,
+          "q90_0": 175.97119999999987,
+          "q95_0": 225.8771199999982,
+          "q99_0": 5581.65,
+          "q99_9": 8829.553080000003
+        },
+        "20_30": {
+          "n": 34,
+          "q50_0": 24.993600000000015,
+          "q90_0": 112.23752000000002,
+          "q95_0": 132.16128000000003,
+          "q99_0": 165.89756000000034,
+          "q99_9": 173.59223600000036
+        }
+      },
+      "5_15": {
+        "10_20": {
+          "n": 378304,
+          "q50_0": 7.11200000000062,
+          "q90_0": 55.2704,
+          "q95_0": 85.24240000000043,
+          "q99_0": 146.60879999999992,
+          "q99_9": 3425.7335599999265
+        },
+        "20_30": {
+          "n": 483,
+          "q50_0": 14.02080000000035,
+          "q90_0": 70.44944000000065,
+          "q95_0": 97.75951999999988,
+          "q99_0": 228.75443200000004,
+          "q99_9": 440.1007199999995
+        }
+      }
+    },
+    "geoaltitude": {
+      "0_5": {
+        "10_20": {
+          "n": 1094834,
+          "q50_0": 3.2512000000000003,
+          "q90_0": 14.122399999999892,
+          "q95_0": 32.512,
+          "q99_0": 482.3968000000001,
+          "q99_9": 697.90736719999
+        },
+        "20_30": {
+          "n": 1378,
+          "q50_0": 6.502400000000001,
+          "q90_0": 30.480000000000018,
+          "q95_0": 61.76264000000099,
+          "q99_0": 553.1307200000001,
+          "q99_9": 967.1178016000041
+        }
+      },
+      "15_plus": {
+        "10_20": {
+          "n": 28767,
+          "q50_0": 19.913599999999434,
+          "q90_0": 190.5,
+          "q95_0": 381.0,
+          "q99_0": 5734.049999999999,
+          "q99_9": 8969.688639200012
+        },
+        "20_30": {
+          "n": 34,
+          "q50_0": 25.552400000000063,
+          "q90_0": 121.04623999999984,
+          "q95_0": 178.18099999999984,
+          "q99_0": 241.75415200000052,
+          "q99_9": 258.07893520000056
+        }
+      },
+      "5_15": {
+        "10_20": {
+          "n": 378304,
+          "q50_0": 11.277600000000405,
+          "q90_0": 91.0336,
+          "q95_0": 126.79679999999999,
+          "q99_0": 425.9072000000003,
+          "q99_9": 1539.7236159998822
+        },
+        "20_30": {
+          "n": 483,
+          "q50_0": 19.405599999999993,
+          "q90_0": 130.1902400000005,
+          "q95_0": 214.7519199999999,
+          "q99_0": 491.92281599999944,
+          "q99_9": 714.3091631999962
+        }
+      }
+    }
+  },
+  "geoaltitude_glitch_screen": {
+    "rows": 1494,
+    "rule": "absolute(altitude_change - vertical_rate*dt) > global q99.9",
+    "threshold_meters": 2880.3599999999997
+  },
+  "horizontal_residual_meters_by_dt_then_speed_band": {
+    "10_20": {
+      "0_50": {
+        "n": 28672,
+        "q50_0": 86.0129789325412,
+        "q90_0": 449.18945274000004,
+        "q95_0": 489.03847992569956,
+        "q99_0": 1171.9989434683698,
+        "q99_9": 5157.831258065873
+      },
+      "100_200": {
+        "n": 372269,
+        "q50_0": 115.02531027884689,
+        "q90_0": 1569.13009974,
+        "q95_0": 1889.80287434,
+        "q99_0": 3376.3184315814515,
+        "q99_9": 20713.376664924348
+      },
+      "200_plus": {
+        "n": 962265,
+        "q50_0": 116.4797660765533,
+        "q90_0": 2314.63214425,
+        "q95_0": 2512.24133073,
+        "q99_0": 5520.522064731339,
+        "q99_9": 35616.749318442075
+      },
+      "50_100": {
+        "n": 138699,
+        "q50_0": 86.21166057084666,
+        "q90_0": 797.404794795,
+        "q95_0": 917.7311844769999,
+        "q99_0": 1864.8515075390576,
+        "q99_9": 9517.516306701096
+      }
+    },
+    "20_30": {
+      "0_50": {
+        "n": 42,
+        "q50_0": 204.53185526527346,
+        "q90_0": 829.6688303248907,
+        "q95_0": 972.2943730918996,
+        "q99_0": 1050.330487574733,
+        "q99_9": 1094.6976439855011
+      },
+      "100_200": {
+        "n": 500,
+        "q50_0": 120.79408845807124,
+        "q90_0": 2384.714989728297,
+        "q95_0": 3447.7822403199975,
+        "q99_0": 3957.9203995559997,
+        "q99_9": 15788.968246505126
+      },
+      "200_plus": {
+        "n": 1202,
+        "q50_0": 112.64238009989808,
+        "q90_0": 3817.19013814603,
+        "q95_0": 4759.6397051700005,
+        "q99_0": 5665.7617281292005,
+        "q99_9": 70718.31469479392
+      },
+      "50_100": {
+        "n": 151,
+        "q50_0": 94.26236681943007,
+        "q90_0": 1206.7014060157449,
+        "q95_0": 1546.938480959971,
+        "q99_0": 1999.4594177743224,
+        "q99_9": 2326.437553090945
+      }
+    }
+  },
+  "input": "data/processed/opensky_clean_v1.parquet",
+  "oracle_boundary_trial": {
+    "abrupt_onset": true,
+    "detector": "speed_band_p95_horizontal_residual",
+    "tiers": {
+      "blatant": {
+        "horizontal_shift_meters": 5500.0,
+        "recall": 0.9994
+      },
+      "gross_positive_control": {
+        "horizontal_shift_meters": 11000.0,
+        "recall": 0.9997
+      },
+      "moderate": {
+        "horizontal_shift_meters": 2500.0,
+        "recall": 0.6284
+      },
+      "subtle": {
+        "horizontal_shift_meters": 500.0,
+        "recall": 0.0891
+      }
+    },
+    "trial_rows": 10000
+  },
+  "parameters": {
+    "effect_gate": "partial replay: any speed/heading/vertical-rate change plus speed-band p95 hypothetical partial-field residual in >=3 consecutive rows",
+    "minimum_attacked_rows": 5,
+    "replay_delay_seconds": 300.0,
+    "replay_tolerance_seconds": 5.0,
+    "window_rows": 30,
+    "window_stride_rows": 10
+  },
+  "read_only": true,
+  "replay": {
+    "capacity_after_gate_by_split_speed_band_replay_subtype": {
+      "full_field_eligibility_only": {
+        "episode_starts_120_seconds": {
+          "test": {
+            "0_50": {
+              "aircraft": 43,
+              "episode_starts": 1909,
+              "segments": 53
+            },
+            "100_200": {
+              "aircraft": 607,
+              "episode_starts": 37384,
+              "segments": 657
+            },
+            "200_plus": {
+              "aircraft": 706,
+              "episode_starts": 105685,
+              "segments": 811
+            },
+            "50_100": {
+              "aircraft": 316,
+              "episode_starts": 7583,
+              "segments": 328
+            }
+          },
+          "train": {
+            "0_50": {
+              "aircraft": 190,
+              "episode_starts": 6506,
+              "segments": 214
+            },
+            "100_200": {
+              "aircraft": 2785,
+              "episode_starts": 161278,
+              "segments": 2990
+            },
+            "200_plus": {
+              "aircraft": 3288,
+              "episode_starts": 501391,
+              "segments": 3760
+            },
+            "50_100": {
+              "aircraft": 1527,
+              "episode_starts": 44854,
+              "segments": 1609
+            }
+          },
+          "val": {
+            "0_50": {
+              "aircraft": 41,
+              "episode_starts": 1426,
+              "segments": 47
+            },
+            "100_200": {
+              "aircraft": 622,
+              "episode_starts": 34146,
+              "segments": 675
+            },
+            "200_plus": {
+              "aircraft": 720,
+              "episode_starts": 104015,
+              "segments": 822
+            },
+            "50_100": {
+              "aircraft": 325,
+              "episode_starts": 11022,
+              "segments": 339
+            }
+          }
+        },
+        "rows": {
+          "test": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 87,
+                "rows": 3229,
+                "segments": 100
+              },
+              "100_200": {
+                "aircraft": 658,
+                "rows": 43213,
+                "segments": 717
+              },
+              "200_plus": {
+                "aircraft": 759,
+                "rows": 122949,
+                "segments": 889
+              },
+              "50_100": {
+                "aircraft": 379,
+                "rows": 12421,
+                "segments": 399
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 5081,
+              "heading+vertical_rate": 2533,
+              "none": 19149,
+              "speed": 45827,
+              "speed+heading": 23263,
+              "speed+heading+vertical_rate": 54943,
+              "speed+vertical_rate": 27750,
+              "vertical_rate": 3266
+            }
+          },
+          "train": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 397,
+                "rows": 11422,
+                "segments": 448
+              },
+              "100_200": {
+                "aircraft": 3047,
+                "rows": 186566,
+                "segments": 3296
+              },
+              "200_plus": {
+                "aircraft": 3549,
+                "rows": 581741,
+                "segments": 4156
+              },
+              "50_100": {
+                "aircraft": 1896,
+                "rows": 68715,
+                "segments": 2013
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 24079,
+              "heading+vertical_rate": 10974,
+              "none": 93603,
+              "speed": 217541,
+              "speed+heading": 111473,
+              "speed+heading+vertical_rate": 247085,
+              "speed+vertical_rate": 128263,
+              "vertical_rate": 15426
+            }
+          },
+          "val": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 91,
+                "rows": 2432,
+                "segments": 101
+              },
+              "100_200": {
+                "aircraft": 668,
+                "rows": 39649,
+                "segments": 733
+              },
+              "200_plus": {
+                "aircraft": 759,
+                "rows": 121927,
+                "segments": 887
+              },
+              "50_100": {
+                "aircraft": 407,
+                "rows": 16039,
+                "segments": 431
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 5012,
+              "heading+vertical_rate": 2256,
+              "none": 21531,
+              "speed": 44480,
+              "speed+heading": 23262,
+              "speed+heading+vertical_rate": 53495,
+              "speed+vertical_rate": 26951,
+              "vertical_rate": 3060
+            }
+          }
+        }
+      },
+      "partial_field_gated": {
+        "episode_starts_120_seconds": {
+          "test": {
+            "0_50": {
+              "aircraft": 27,
+              "episode_starts": 633,
+              "segments": 30
+            },
+            "100_200": {
+              "aircraft": 354,
+              "episode_starts": 5397,
+              "segments": 368
+            },
+            "200_plus": {
+              "aircraft": 196,
+              "episode_starts": 2699,
+              "segments": 203
+            },
+            "50_100": {
+              "aircraft": 233,
+              "episode_starts": 2983,
+              "segments": 237
+            }
+          },
+          "train": {
+            "0_50": {
+              "aircraft": 128,
+              "episode_starts": 2706,
+              "segments": 139
+            },
+            "100_200": {
+              "aircraft": 1701,
+              "episode_starts": 24679,
+              "segments": 1758
+            },
+            "200_plus": {
+              "aircraft": 787,
+              "episode_starts": 11226,
+              "segments": 807
+            },
+            "50_100": {
+              "aircraft": 1093,
+              "episode_starts": 15483,
+              "segments": 1119
+            }
+          },
+          "val": {
+            "0_50": {
+              "aircraft": 24,
+              "episode_starts": 676,
+              "segments": 28
+            },
+            "100_200": {
+              "aircraft": 352,
+              "episode_starts": 5253,
+              "segments": 365
+            },
+            "200_plus": {
+              "aircraft": 184,
+              "episode_starts": 2875,
+              "segments": 189
+            },
+            "50_100": {
+              "aircraft": 221,
+              "episode_starts": 3494,
+              "segments": 224
+            }
+          }
+        },
+        "rows": {
+          "test": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 56,
+                "rows": 791,
+                "segments": 60
+              },
+              "100_200": {
+                "aircraft": 288,
+                "rows": 3497,
+                "segments": 297
+              },
+              "200_plus": {
+                "aircraft": 182,
+                "rows": 2146,
+                "segments": 190
+              },
+              "50_100": {
+                "aircraft": 251,
+                "rows": 4232,
+                "segments": 254
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 118,
+              "heading+vertical_rate": 106,
+              "speed": 743,
+              "speed+heading": 1353,
+              "speed+heading+vertical_rate": 7962,
+              "speed+vertical_rate": 330,
+              "vertical_rate": 54
+            }
+          },
+          "train": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 224,
+                "rows": 3212,
+                "segments": 242
+              },
+              "100_200": {
+                "aircraft": 1414,
+                "rows": 16280,
+                "segments": 1443
+              },
+              "200_plus": {
+                "aircraft": 744,
+                "rows": 8792,
+                "segments": 765
+              },
+              "50_100": {
+                "aircraft": 1202,
+                "rows": 20213,
+                "segments": 1226
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 500,
+              "heading+vertical_rate": 549,
+              "speed": 2907,
+              "speed+heading": 7065,
+              "speed+heading+vertical_rate": 35677,
+              "speed+vertical_rate": 1585,
+              "vertical_rate": 214
+            }
+          },
+          "val": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 48,
+                "rows": 753,
+                "segments": 53
+              },
+              "100_200": {
+                "aircraft": 299,
+                "rows": 3541,
+                "segments": 309
+              },
+              "200_plus": {
+                "aircraft": 174,
+                "rows": 2189,
+                "segments": 182
+              },
+              "50_100": {
+                "aircraft": 250,
+                "rows": 4313,
+                "segments": 253
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 169,
+              "heading+vertical_rate": 117,
+              "speed": 829,
+              "speed+heading": 1388,
+              "speed+heading+vertical_rate": 7945,
+              "speed+vertical_rate": 323,
+              "vertical_rate": 25
+            }
+          }
+        }
+      },
+      "partial_field_ungated": {
+        "episode_starts_120_seconds": {
+          "test": {
+            "0_50": {
+              "aircraft": 43,
+              "episode_starts": 1909,
+              "segments": 53
+            },
+            "100_200": {
+              "aircraft": 607,
+              "episode_starts": 37384,
+              "segments": 657
+            },
+            "200_plus": {
+              "aircraft": 706,
+              "episode_starts": 105685,
+              "segments": 811
+            },
+            "50_100": {
+              "aircraft": 316,
+              "episode_starts": 7583,
+              "segments": 328
+            }
+          },
+          "train": {
+            "0_50": {
+              "aircraft": 190,
+              "episode_starts": 6506,
+              "segments": 214
+            },
+            "100_200": {
+              "aircraft": 2785,
+              "episode_starts": 161278,
+              "segments": 2990
+            },
+            "200_plus": {
+              "aircraft": 3288,
+              "episode_starts": 501391,
+              "segments": 3760
+            },
+            "50_100": {
+              "aircraft": 1527,
+              "episode_starts": 44854,
+              "segments": 1609
+            }
+          },
+          "val": {
+            "0_50": {
+              "aircraft": 41,
+              "episode_starts": 1426,
+              "segments": 47
+            },
+            "100_200": {
+              "aircraft": 622,
+              "episode_starts": 34146,
+              "segments": 675
+            },
+            "200_plus": {
+              "aircraft": 720,
+              "episode_starts": 104015,
+              "segments": 822
+            },
+            "50_100": {
+              "aircraft": 325,
+              "episode_starts": 11022,
+              "segments": 339
+            }
+          }
+        },
+        "rows": {
+          "test": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 87,
+                "rows": 3136,
+                "segments": 99
+              },
+              "100_200": {
+                "aircraft": 649,
+                "rows": 42494,
+                "segments": 703
+              },
+              "200_plus": {
+                "aircraft": 757,
+                "rows": 121600,
+                "segments": 884
+              },
+              "50_100": {
+                "aircraft": 376,
+                "rows": 12201,
+                "segments": 396
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 5002,
+              "heading+vertical_rate": 2495,
+              "none": 18972,
+              "speed": 45342,
+              "speed+heading": 22950,
+              "speed+heading+vertical_rate": 53998,
+              "speed+vertical_rate": 27436,
+              "vertical_rate": 3236
+            }
+          },
+          "train": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 391,
+                "rows": 11094,
+                "segments": 440
+              },
+              "100_200": {
+                "aircraft": 3019,
+                "rows": 183438,
+                "segments": 3259
+              },
+              "200_plus": {
+                "aircraft": 3536,
+                "rows": 575440,
+                "segments": 4132
+              },
+              "50_100": {
+                "aircraft": 1875,
+                "rows": 67511,
+                "segments": 1988
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 23759,
+              "heading+vertical_rate": 10839,
+              "none": 92714,
+              "speed": 215280,
+              "speed+heading": 109981,
+              "speed+heading+vertical_rate": 242779,
+              "speed+vertical_rate": 126868,
+              "vertical_rate": 15263
+            }
+          },
+          "val": {
+            "by_speed_band": {
+              "0_50": {
+                "aircraft": 91,
+                "rows": 2365,
+                "segments": 101
+              },
+              "100_200": {
+                "aircraft": 663,
+                "rows": 38952,
+                "segments": 727
+              },
+              "200_plus": {
+                "aircraft": 756,
+                "rows": 120545,
+                "segments": 882
+              },
+              "50_100": {
+                "aircraft": 403,
+                "rows": 15793,
+                "segments": 427
+              }
+            },
+            "maneuver_distribution": {
+              "heading": 4939,
+              "heading+vertical_rate": 2228,
+              "none": 21319,
+              "speed": 44013,
+              "speed+heading": 22947,
+              "speed+heading+vertical_rate": 52536,
+              "speed+vertical_rate": 26644,
+              "vertical_rate": 3029
+            }
+          }
+        }
+      }
+    },
+    "eligibility_only": {
+      "aircraft": 7168,
+      "rows": 1219040,
+      "segments": 8623
+    },
+    "full_field": {
+      "eligibility_only": {
+        "aircraft": 7168,
+        "rows": 1219040,
+        "segments": 8623
+      },
+      "reporting": "ungated eligibility and boundary-stratified results only; no interior residual gate is scientifically valid"
+    },
+    "partial_field_full_effect_gate": {
+      "aircraft": 3634,
+      "rows": 69959,
+      "segments": 3870
+    },
+    "partial_field_ungated_pair": {
+      "aircraft": 7119,
+      "rows": 1194569,
+      "segments": 8538
+    }
+  },
+  "report_version": 2,
+  "speed_band_p95_threshold_meters": {
+    "0_50": 489.695565898,
+    "100_200": 1890.7479245179993,
+    "200_plus": 2513.3366822899998,
+    "50_100": 918.451844197
+  },
+  "split_aircraft_coverage": {
+    "aircraft_in_split_file": 14279,
+    "cleaned_aircraft": 14279,
+    "cleaned_aircraft_covered": 14279,
+    "cleaned_aircraft_missing_from_split": 0,
+    "split_aircraft_absent_from_cleaned": 0
+  },
+  "split_file": "data/sequences_v2/split_aircraft.json",
+  "windows_per_episode": {
+    "freeze_duration_rows": {
+      "120_seconds": {
+        "candidate_episode_starts": 1321314,
+        "sampled_starts": 50000,
+        "windows_per_episode": {
+          "max": 4,
+          "mean": 3.15274,
+          "min": 0,
+          "n": 50000,
+          "q50_0": 3.0,
+          "q90_0": 4.0,
+          "q95_0": 4.0,
+          "q99_0": 4.0,
+          "q99_9": 4.0
+        },
+        "windows_per_evaluable_episode": {
+          "max": 4,
+          "mean": 3.156338225577158,
+          "min": 1,
+          "n": 49943,
+          "q50_0": 3.0,
+          "q90_0": 4.0,
+          "q95_0": 4.0,
+          "q99_0": 4.0,
+          "q99_9": 4.0
+        }
+      },
+      "180_seconds": {
+        "candidate_episode_starts": 1241829,
+        "sampled_starts": 50000,
+        "windows_per_episode": {
+          "max": 4,
+          "mean": 3.7554,
+          "min": 0,
+          "n": 50000,
+          "q50_0": 4.0,
+          "q90_0": 4.0,
+          "q95_0": 4.0,
+          "q99_0": 4.0,
+          "q99_9": 4.0
+        },
+        "windows_per_evaluable_episode": {
+          "max": 4,
+          "mean": 3.756376657931062,
+          "min": 1,
+          "n": 49987,
+          "q50_0": 4.0,
+          "q90_0": 4.0,
+          "q95_0": 4.0,
+          "q99_0": 4.0,
+          "q99_9": 4.0
+        }
+      },
+      "300_seconds": {
+        "candidate_episode_starts": 1108683,
+        "sampled_starts": 50000,
+        "windows_per_episode": {
+          "max": 6,
+          "mean": 4.95322,
+          "min": 1,
+          "n": 50000,
+          "q50_0": 5.0,
+          "q90_0": 5.0,
+          "q95_0": 6.0,
+          "q99_0": 6.0,
+          "q99_9": 6.0
+        },
+        "windows_per_evaluable_episode": {
+          "max": 6,
+          "mean": 4.95322,
+          "min": 1,
+          "n": 50000,
+          "q50_0": 5.0,
+          "q90_0": 5.0,
+          "q95_0": 6.0,
+          "q99_0": 6.0,
+          "q99_9": 6.0
+        }
+      },
+      "90_seconds": {
+        "candidate_episode_starts": 1366372,
+        "sampled_starts": 50000,
+        "windows_per_episode": {
+          "max": 3,
+          "mean": 2.84998,
+          "min": 0,
+          "n": 50000,
+          "q50_0": 3.0,
+          "q90_0": 3.0,
+          "q95_0": 3.0,
+          "q99_0": 3.0,
+          "q99_9": 3.0
+        },
+        "windows_per_evaluable_episode": {
+          "max": 3,
+          "mean": 2.8605640871223526,
+          "min": 1,
+          "n": 49815,
+          "q50_0": 3.0,
+          "q90_0": 3.0,
+          "q95_0": 3.0,
+          "q99_0": 3.0,
+          "q99_9": 3.0
+        }
+      }
+    },
+    "replay_120_seconds_nominal": {
+      "candidate_episode_starts": 1017199,
+      "sampled_starts": 50000,
+      "windows_per_episode": {
+        "max": 4,
+        "mean": 3.24574,
+        "min": 0,
+        "n": 50000,
+        "q50_0": 3.0,
+        "q90_0": 4.0,
+        "q95_0": 4.0,
+        "q99_0": 4.0,
+        "q99_9": 4.0
+      },
+      "windows_per_evaluable_episode": {
+        "max": 4,
+        "mean": 3.248078616603955,
+        "min": 1,
+        "n": 49964,
+        "q50_0": 3.0,
+        "q90_0": 4.0,
+        "q95_0": 4.0,
+        "q99_0": 4.0,
+        "q99_9": 4.0
+      }
+    }
+  }
+}

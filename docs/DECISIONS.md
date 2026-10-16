@@ -157,3 +157,17 @@ intentionally different; comparisons remain on identical splits/evaluation sets.
 **Why:** Prevents split variation from being confused with injection variation and avoids overclaiming temporal coverage.
 **Type:** implementation choice
 **Consequences / risks:** Five complete realizations may be computationally costly; no causal/generalizability claim follows from this limited source period.
+
+### D-017 — Cross-reference: calibration revisions supersede earlier draft parts (PROPOSED; 2026-10-17)
+**Context:** Extended calibration and review changed the meaning of eta, replay/freeze tiering, quota units, and realization requirements from the initial design draft.
+**Decision:** Proposed cross-reference correction: D-015 supersedes the density/eta, physical-tier, and window-quota portions of D-012. D-016 supersedes the fixed-split and realization/CI portions of D-013. D-012 and D-013 remain historical records for their unaffected boundary, Track A, provenance, and general reproducibility decisions.
+**Why:** Preserves append-only history while making the active proposal unambiguous.
+**Type:** engineering/documentation
+**Consequences / risks:** D-015/D-016 remain proposed; no superseded detail is approved merely by this cross-reference.
+
+### D-018 — Extended-calibration replay, altitude, quota, and oracle proposal (PROPOSED; 2026-10-17)
+**Context:** The extended read-only calibration is saved in `docs/calibration_v3_stage1.json`. It measured residuals by dt/speed and altitude by vertical-rate/dt, complete aircraft split coverage, replay gate capacity, window yield per episode, and an in-memory oracle boundary trial.
+**Decision:** Proposed: retain 300 s as the paper-grounded replay delay; make 60/120/300 s a disabled labelled sensitivity sweep; remove replay horizontal-error tiers and use speed-band reporting; define freeze tiers by 90/120/180/300 s duration. Separate shared eligibility from attack-only effects, add maneuver-matched controls, use the five-attacked/three-effect-row window rule, and make uniform-per-sub-airspace the primary FL dataset. Set quota targets first on episodes and aircraft (test >=150 episodes and >=100 aircraft per cell); derive windows from observed episode yield. Use altitude-residual-derived shifts and screen geoaltitude residual glitches. Add an abrupt gross option and require the oracle residual detector to catch >=99% of gross boundaries.
+**Why:** Error magnitude for replay/freeze is speed times delay/duration, whereas the measured residual distributions directly support effect gates, altitude handling, and a reproducible positive-control sanity check.
+**Type:** implementation choice
+**Consequences / risks:** These values are proposed and no attack data were generated. The gated test capacity is an upper bound before spacing/quota constraints; full-field replay has no defensible interior residual gate.

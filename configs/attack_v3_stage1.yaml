@@ -1,5 +1,5 @@
 # REVIEW DRAFT ONLY — no attack code may consume this until human approval.
-version: attack_v3_stage1_draft_2
+version: attack_v3_stage1_draft_3
 status: proposed_unapproved
 global_seed: 42
 injection_realization_global_seeds: [42, 43, 44, 45, 46]
@@ -21,32 +21,50 @@ splits:
 region:
   grid_cell_degrees: 5.0
   density_time_window_seconds: 60
-  rho: unique_aircraft_with_any_valid_row_in_grid_cell_time_window
-  rho_reference: median_nonzero_rho_over_eligible_episode_start_candidates
-  modes: [density_scaled, uniform_per_subairspace_control]
+  rho: unique_aircraft_with_any_eligible_row_in_grid_cell_time_window
+  rho_reference: median_nonzero_rho_over_eligible_aircraft_segments
+  primary_dataset_mode: uniform_per_subairspace
+  modes: [uniform_per_subairspace, density_scaled_sensitivity]
 
-eligibility:
+eligibility: # Applied identically to attacks and matched normal controls.
   require_airborne: true
   contact_lag_seconds: {require_finite: true, min: 0.0, max: 30.0}
   target_fields_must_be_observed: true
-  residual_measurement: {same_segment_only: true, min_dt_seconds_exclusive: 0.0, max_dt_seconds: 30.0}
+  adjacent_pair: {same_segment_only: true, min_dt_seconds_exclusive: 0.0, max_dt_seconds: 30.0}
+  normal_controls: {match_speed_band: true, match_abs_vertical_rate_band: true, match_replay_maneuver_category: true}
   replay:
-    delay_seconds: 300
+    paper_grounded_delay_seconds: 300
     timestamp_tolerance_seconds: 5
     require_same_aircraft_and_segment: true
     require_prior_source_eligible: true
-    measurable_change: {speed_mps: 1.0, heading_degrees: 1.0, vertical_rate_mps: 0.5}
-  interior_detectability: {minimum_consecutive_residual_pairs: 3, threshold: speed_band_p95_residual_meters}
-  matched_normal_controls_use_identical_type_specific_predicate: true
+    optional_labelled_delay_sweep: {enabled: false, values_seconds: [60, 120, 300]}
+  geoaltitude_glitch_screen:
+    residual_definition: absolute_altitude_change_minus_vertical_rate_times_dt
+    global_q999_threshold_meters: 2880.360
+    handling: exclude_row_and_adjacent_pair_from_baro_plus_geo_eligibility_no_imputation
+
+effect_conditions: # Attacks only; never applied to matched normal controls.
+  retained_kinematics_horizontal: {threshold: speed_band_p95_post_attack_residual, min_consecutive_interior_pairs: 3}
+  altitude: {threshold: vertical_rate_band_p95_post_attack_residual, min_consecutive_interior_pairs: 3}
+  replay_partial_field:
+    source_current_change_at_least: {speed_mps: 1.0, heading_degrees: 1.0, vertical_rate_mps: 0.5}
+    residual_gate: speed_band_p95_hypothetical_partial_replay_residual
+    min_consecutive_interior_pairs: 3
+  replay_full_field: {interior_residual_gate: not_scientifically_applicable, report_boundary_and_interior_separately: true}
+
+window_labelling:
+  attacked_window_rule: at_least_5_attacked_rows_and_at_least_3_effect_qualified_rows
+  ambiguous_window: {label: ambiguous, excluded_from_evaluation: true, excluded_from_track_a_training: true}
 
 episodes:
-  duration_seconds: {min: 90, max: 300}
+  nominal_duration_seconds: 120
   max_per_segment: 3
   minimum_inter_episode_gap_seconds: 600
-  onset: {mode: linear_mix, steps: 3, includes_first_attacked_step: true}
-  offset: {mode: linear_mix, steps: 3, includes_last_attacked_step: true}
+  onset: {default_mode: linear_mix, default_steps: 3, gross_positive_control_mode: abrupt_or_linear_mix}
+  offset: {mode: linear_mix, steps: 3}
   labels: [none, onset, interior, offset]
   freeze_anchor: last_fully_eligible_lat_lon_row_before_onset
+  freeze_duration_tiers_seconds: {subtle: 90, moderate: 120, blatant: 180, gross_positive_control: 300}
 
 attacks:
   stage1_types: [constant_deviation, random_gaussian_deviation, gradual_deviation, replay_partial_field, replay_full_field, freeze_fixed_value]
@@ -59,47 +77,45 @@ attacks:
   metadata_model_inputs: false
   gradual: {interior_normalization: j_divided_by_n_minus_1, n_equals_1_value: 1.0}
   gaussian:
-    deviation_sigma: kappa_times_tier_horizontal_meters
+    deviation_sigma_meters_by_tier: {subtle: 250.0, moderate: 1250.0, blatant: 2750.0, gross_positive_control: 5500.0}
+    eq12_noise_kappa_by_tier: {subtle: 0.20, moderate: 0.10, blatant: 0.05, gross_positive_control: 0.0}
     per_step_noise_sigma_meters: 25.0
+
+tiers: # Manipulation tiers; replay has no horizontal-error tier.
+  horizontal_meters: {subtle: 500.0, moderate: 2500.0, blatant: 5500.0, gross_positive_control: 11000.0}
+  altitude_residual_calibration_meters:
+    baro_only: {subtle: 25.0, moderate: 100.0, blatant: 200.0, gross_positive_control: 500.0}
+    baro_plus_geo_shared_shift: {subtle: 35.0, moderate: 150.0, blatant: 500.0, gross_positive_control: 1000.0}
+  horizontal_bearing: deterministic_uniform_0_to_360_degrees_per_episode
 
 prevalence:
   tau_sweep: [0.005, 0.01, 0.05, 0.10]
-  theta: 0.5
-  eta_definition: fraction_of_eligible_episode_start_candidates
-  density_scaled:
-    multiplier: clip_rho_reference_divided_by_rho
+  eta_definition: fraction_of_eligible_aircraft_segments_targeted
+  primary_uniform_per_subairspace: {eta_requested: tau, report_requested_and_realized_segment_eta: true}
+  density_scaled_sensitivity:
+    theta: 0.5
+    formula: min_eta_cap_of_tau_times_log_1_plus_theta_times_clipped_rho_reference_over_rho
     multiplier_min: 0.25
     multiplier_max: 4.0
     eta_cap: 0.20
-    report_requested_and_realized_eta_by_region: true
-  quota_mode:
-    enabled: true
-    qualifying_window: {minimum_attacked_rows: 5, minimum_effective_amplitude: tier_target_or_speed_band_residual_p95}
-    ambiguous_window: {label: ambiguous, excluded_from_evaluation: true, excluded_from_track_a_training: true}
-    target_windows_per_type_tier_split: {train: 2000, val: 500, test: 500}
-    target_episodes_per_type_tier_split: {train: 100, val: 30, test: 30}
-    target_unique_aircraft_per_type_tier_split: {train: 50, val: 20, test: 20}
-    minimum_test_windows_per_cell: 500
-    fail_on_capacity_shortfall: true
-    report_realized_counts_per_cell: true
+  report_requested_and_realized_row_prevalence_by_tau_and_region: true
 
-tiers:
-  calibration_residual_meters:
-    speed_bands:
-      0_50: {p50: 86.11, p95: 489.70, p99: 1170.78}
-      50_100: {p50: 86.23, p95: 918.45, p99: 1867.62}
-      100_200: {p50: 115.03, p95: 1890.75, p99: 3394.62}
-      200_plus: {p50: 116.47, p95: 2513.34, p99: 5522.31}
-  subtle: {horizontal_meters: 500.0, shared_altitude_meters: 50.0, gaussian_kappa: 0.20}
-  moderate: {horizontal_meters: 2500.0, shared_altitude_meters: 100.0, gaussian_kappa: 0.10}
-  blatant: {horizontal_meters: 5500.0, shared_altitude_meters: 250.0, gaussian_kappa: 0.00}
-  gross_positive_control: {horizontal_meters: 11000.0, shared_altitude_meters: 500.0, gaussian_kappa: 0.00}
-  horizontal_bearing: deterministic_uniform_0_to_360_degrees_per_episode
+quota_mode:
+  enabled: true
+  unit: type_subtype_or_variant_tier_split
+  target_episodes_per_cell: {train: 300, val: 150, test: 150}
+  target_unique_aircraft_per_cell: {train: 200, val: 100, test: 100}
+  window_target: derived_from_realized_evaluable_windows_per_episode_not_independently_forced
+  derived_reference_windows_per_episode: {replay_120_seconds: 3.248, freeze_90_120_180_300_seconds: [2.861, 3.156, 3.756, 4.953]}
+  require_at_least_one_evaluable_window_per_episode: true
+  fail_on_capacity_shortfall: true
+  report_requested_feasible_and_realized_counts_per_cell: true
 
 evaluation:
   report_boundary_and_interior_only_recall: true
+  report_gated_and_ungated_replay_results: true
   report_full_unfiltered_normal_fpr: true
-  report_matched_eligible_control_fpr: true
+  report_matched_eligible_maneuver_control_fpr: true
   cluster_bootstrap: {cluster: icao24, confidence_level: 0.95, replicates: 1000}
   required_injection_realizations: 5
   fewer_than_required_realizations_ci_note: insufficient_realization_caveat_required
@@ -128,3 +144,6 @@ release_gate:
   require_manifest_region_and_cell_counts: true
   require_capacity_analysis: true
   require_five_injection_realizations_or_ci_caveat: true
+  oracle_residual_detector:
+    threshold: speed_band_p95_horizontal_residual
+    require_gross_abrupt_boundary_recall_at_least: 0.99
