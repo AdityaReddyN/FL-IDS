@@ -155,3 +155,29 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-017--D-018 proposed only; D-015/D-016 cross-reference the superseded D-012/D-013 draft portions.
 **Next steps:** Human reviews the extended design, draft YAML, and calibration JSON. Do not write attack-generation code until approval.
 **Questions for human:** Do you approve the extended-calibration design/configuration for Phase 1 implementation?
+
+### 2026-10-18 — Session 8 — Antigravity — Phase 1 calibration & design revision
+**Goal:** Address human design review: decouple truth from detectability, define attack-specific effect strata, resolve episode duration/interior window yield feasibility, report capacity by split and speed band with unique test aircraft, correct freeze oracle and report ramp + abrupt recall and FPR, compute train-only calibration thresholds, treat 15+ m/s vertical-rate band separately, check 90s freeze feasibility, and clarify Eq. 12 noise semantics.
+**Done:**
+- Extended and optimized `scripts/calibrate_v3_stage1.py` (cached group indices, pure numpy vectorized shifts; completed read-only in ~40 seconds).
+- Generated `docs/calibration_v3_stage1.json` (report_version 4) with all 8 requirements covered.
+- Revised `docs/attack_v3_design.md` (Draft 4) and `configs/attack_v3_stage1.yaml` (Draft 4).
+- Appended D-019 to `docs/DECISIONS.md`, superseding effect-gate and window-rule portions of D-011, D-014, and D-018.
+- Updated `docs/PROJECT_CONTEXT.md` and `docs/ROADMAP.md`.
+**Ran / verified:**
+- Verified calibration rerun on immutable `opensky_clean_v1.parquet` and `split_aircraft.json`.
+- Train-only p95 thresholds: 0--50 m/s: 491.91 m (+2.22 m vs all), 50--100 m/s: 919.12 m (+0.67 m), 100--200 m/s: 1883.64 m (-7.11 m), 200+ m/s: 2505.35 m (-7.99 m). Geo glitch threshold: 2887.98 m (1,460 rows).
+- Altitude 15+ m/s vertical-rate band: train baro p95 373.38 m vs all 225.45 m (+147.9 m divergence); recommended separate descriptive reporting.
+- Segment length feasibility: 21,389 segments total; 16,171 >= 360 s (75.6%), 12,616 >= 600 s (59.0%), 10,139 >= 900 s (47.4%).
+- Window yields: nominal 120 s episodes (12 rows) produce 0.0 interior-only windows for 30-row windows; 600 s produces mean 2.50 interior-only windows (7.85 qualifying); 900 s produces mean 5.50 interior-only windows (10.84 qualifying).
+- 90 s freeze feasibility: 9 rows with 3-step ramp has 3 interior rows; cannot yield interior-only 30-row windows; evaluable at boundary+interior stratum only.
+- Test speed band capacity: partial replay 120 s episode starts has 27 unique aircraft in 0--50 m/s band; marked descriptive only (< 100 aircraft).
+- Oracle detector: gross abrupt recall 0.9999 (satisfies >= 0.99 release gate); gross 3-step ramp recall 0.9754; clean control FPR 4.58% (manipulation/freeze) and 3.87% (replay). Freeze interior step recall is 21.17% (expected displacement v * dt >= p95).
+- Eq. 12 noise semantics: effective noise standard deviation is kappa * 25.0 m.
+**NOT verified:** No attack generation code was written or executed; no dataset or sequence file was modified. All values remain proposed pending human approval.
+**Results:** `docs/calibration_v3_stage1.json`.
+**Problems / surprises:** The initial rerun of the previous calibration script had heavy allocation overhead in segment iteration (`df["time"].to_numpy()` inside loop); optimized with precomputed groupby indices and pure vectorized shifts, reducing runtime from minutes to ~40 seconds.
+**Decisions made:** D-019 proposed (superseding effect-gate and window-rule portions of D-011, D-014, D-018).
+**Next steps:** Human review and approval of Draft 4 design, Draft 4 YAML, and D-019. Once approved, proceed to Phase 1 attack generator framework implementation.
+**Questions for human:** Do you approve the Draft 4 design, Draft 4 YAML, and proposed decision D-019?
+

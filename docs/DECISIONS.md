@@ -171,3 +171,27 @@ intentionally different; comparisons remain on identical splits/evaluation sets.
 **Why:** Error magnitude for replay/freeze is speed times delay/duration, whereas the measured residual distributions directly support effect gates, altitude handling, and a reproducible positive-control sanity check.
 **Type:** implementation choice
 **Consequences / risks:** These values are proposed and no attack data were generated. The gated test capacity is an upper bound before spacing/quota constraints; full-field replay has no defensible interior residual gate.
+
+### D-019 — Decoupled ground truth, detectability strata, long episodes, and train-only calibration (PROPOSED; 2026-10-18)
+**Context:** Review of draft_3 / D-014 / D-018 showed that conditioning window labels on a residual threshold conflated ontological ground truth with detectability, distorting subtle-tier evaluation and creating selection artifacts. Furthermore, with 30-row windows (stride 10) and 3-step ramps, nominal 90--300 s episodes produce zero interior-only windows. Finally, calibration thresholds must not leak validation/test data, and the oracle detector required evaluation under default ramps as well as abrupt onsets.
+**Decision:** Proposed revisions superseding the effect-gate and window-rule portions of D-011, D-014, and D-018:
+1. **Decouple truth from detectability:** An attacked window is defined solely by attacked-row count (>= 5 rows) and minimum effective ramp amplitude, NOT by residual exceedance. The requirement for "effect-qualified rows" is completely removed from the window labelling rule. `ambiguous` is reserved strictly for weak overlap (1--4 attacked rows) and excluded from Track A training and primary evaluation.
+2. **Detectability reporting strata:** Detectability is reported via post-hoc strata, NOT used as a primary selection gate: (a) boundary windows, (b) interior windows with residual qualification, and (c) interior windows without residual qualification. Primary dataset generation uses shared eligibility only (ungated); residual-gated subsets are reported separately as a sub-analysis.
+3. **Attack-specific effect quantities for strata:** Compared against speed-band p95:
+   - Constant offset: onset/offset step displacement (`magnitude / 3` under default 3-step ramp).
+   - Gradual deviation: per-step drift (`magnitude / (n-1)`) and cumulative offset (`magnitude`).
+   - Gaussian deviation: pair residual compared to speed-band p95 (or sigma).
+   - Partial replay: current-versus-source kinematic discrepancy.
+   - Freeze: expected displacement `v * dt`.
+4. **Long episode durations for interior evaluation:** Add long-episode configurations of 600 s (60 rows) and 900 s (90 rows) for manipulation and freeze, alongside the nominal 120 s setting. Calibration confirms 12,616 segments >= 600 s and 10,139 segments >= 900 s exist. A 600 s episode yields mean 2.50 interior-only windows (7.85 qualifying windows); 900 s yields mean 5.50 interior-only windows (10.84 qualifying). 90--300 s episodes yield 0 interior-only windows.
+5. **Capacity and test reliability:** Report post-eligibility and post-gate capacity for freeze, manipulation, and replay by split and speed band. Any test speed band with under 100 unique test aircraft (specifically, the 0--50 m/s test band in replay has 27 unique aircraft for 120 s episode starts) must be marked as descriptive only.
+6. **Train-only calibration thresholds:** Speed-band horizontal residual p95 thresholds and geoaltitude glitch screen (2,887.98 m) are strictly computed on TRAIN aircraft only (`data/sequences_v2/split_aircraft.json`). Train vs all-data differences are small: 0--50 m/s (+2.2 m), 50--100 m/s (+0.7 m), 100--200 m/s (-7.1 m), 200+ m/s (-8.0 m).
+7. **Altitude separate treatment:** The 15+ m/s vertical-rate band exhibits a large train-vs-all baro p95 difference (373.4 m train vs 225.5 m all-data; geo 510.2 m train vs 381.0 m all-data) due to sparse samples. It is excluded from altitude effect strata or reported descriptively only. One shared altitude shift size per tier is used across both variants (`baro_only` and `baro_plus_geo`), calibrated from 0--5 m/s where baro and geo p95 are closest.
+8. **Freeze feasibility & Eq. 12 noise semantics:**
+   - 90 s freeze tier (9 rows with 3-step ramp has 3 interior rows) cannot yield interior-only 30-row windows; it is evaluable at boundary+interior stratum only.
+   - Eq. 12 noise semantics: `x~'_i = x~_i + kappa * s`, where `s ~ N(0, per_step_noise_sigma_meters)` (25.0 m). Effective noise std is `kappa * 25.0 m` (subtle: 5.0 m, moderate: 2.5 m, blatant: 1.25 m, gross: 0.0 m).
+9. **Oracle detector benchmarks:** Evaluated under both default 3-step ramp and abrupt onset on 10,000 clean pairs. Gross abrupt recall is 0.9999 (satisfies the >= 0.99 release gate); gross 3-step ramp recall is 0.9754. Clean maneuver-matched control FPR is 4.58% (manipulation/freeze) and 3.87% (replay). Freeze interior recall is 21.17% (expected displacement `v * dt` >= p95 residual).
+**Why:** Maintains scientific honesty by separating physical ground truth from algorithmic detectability, prevents data leakage from validation/test splits, solves the interior-only window feasibility bottleneck, and sets rigorous reporting standards.
+**Type:** implementation choice
+**Consequences / risks:** Proposed only; awaiting human approval before any attack-generation code is written.
+

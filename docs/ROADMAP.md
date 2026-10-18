@@ -23,15 +23,16 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] D-004--D-009 approved: Eq. 10 sweep, Eq. 11--13 amplitude/noise/stealth,
   Track A novelty primary and Track B upper bound, correct replay naming,
   staged ghost/DoS scope, and episode-level injection.
-- [x] Design doc: `docs/attack_v3_design.md` (schema, parameters, which are paper-grounded vs implementation choices; human review pending before code)
-- [x] Draft `configs/attack_v3_stage1.yaml` (proposed tolerances, regions, quotas,
-  tiers, and reproducibility settings; human review pending before code)
+- [x] Design doc: `docs/attack_v3_design.md` (Draft 4: decoupled truth from detectability, post-hoc reporting strata, 600s/900s long-episode settings for interior window feasibility, train-only thresholds, separate 15+ m/s vertical-rate treatment; human review pending before code)
+- [x] Draft `configs/attack_v3_stage1.yaml` (Draft 4: proposed tolerances, regions, quotas,
+  tiers, long episodes, train-only p95 thresholds, and reproducibility settings; human review pending before code)
 - [x] Read-only Stage 1 calibration/feasibility report: 5-degree grid/density,
   split eligibility and capacity, residuals, replay-change candidates, and
   geoaltitude outliers (reviewed thresholds remain proposed)
-- [x] Extended read-only calibration JSON: residuals by dt/band, replay gate
-  capacity and maneuver mix, altitude residuals, split coverage, window yield,
-  and in-memory oracle-boundary trial (all resulting values remain proposed)
+- [x] Extended read-only calibration JSON (`docs/calibration_v3_stage1.json`, report_version 4):
+  train-only residual thresholds, segment length distribution (12,616 segments >= 600s),
+  long-episode interior window yields (600s: 2.50, 900s: 5.50), unique aircraft capacity by speed band,
+  corrected oracle boundary benchmarks under 3-step ramp and abrupt onsets, and FPR on maneuver-matched controls (all proposed per D-019)
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-17, Session 7.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-18, Session 8.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -10,8 +10,8 @@ in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.56
 
 ## Current phase
 Phase 1 extended-calibration review. Gate 0 approved; attack code is not authorized until the
-human approves the revised `docs/attack_v3_design.md` and
-`configs/attack_v3_stage1.yaml`.
+human approves the revised `docs/attack_v3_design.md` (Draft 4),
+`configs/attack_v3_stage1.yaml` (Draft 4), and proposed decision D-019.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -39,25 +39,22 @@ human approves the revised `docs/attack_v3_design.md` and
 - v3 plan (paper-grounded, partial): constant / Gaussian / gradual deviation,
   300 s delayed replay. Ghost injection and DoS deferred. Exact equations from
   Li et al. are unavailable; numeric ranges are implementation choices.
-- `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml` are
-  extended-calibration review drafts only. Stage 1 is manipulation/replay, with
-  shared eligibility versus attack-only effect conditions, boundary labels,
-  ambiguous-window exclusion, maneuver-matched controls, segment-target eta,
-  episode/aircraft-first quotas, and physical manipulation/altitude tiers.
-  Uniform-per-sub-airspace is proposed as the primary FL dataset; ghost/DoS are
-  Stage 2. No attack code exists or is authorized before approval.
-- Read-only Stage 1 calibration: 260 occupied 5-degree cells; 60-second-cell rho
-  q50/q90/q99 = 5/41/151. Base eligible rows are 51.91%/50.25%/50.47% of
-  train/val/test, and 300-second replay eligibility is 41.44%/39.89%/40.39%.
-  All-eligible window capacity (30 rows, stride 10) is 80,979/17,188/17,310;
-  replay capacity is 59,923/12,505/12,738. These are feasibility upper bounds,
-  not injected datasets or validated quotas.
-- Extended report: `docs/calibration_v3_stage1.json` (read-only input; written
-  under docs). It found 14,279/14,279 split coverage, 69,959 partial-field
-  replay rows after the three-consecutive-pair effect gate, and 11,712 nominal
-  120-second gated test episode starts. A 10,000-row in-memory abrupt-boundary
-  oracle trial has gross-tier recall 0.9997; it is a generator sanity check,
-  not a learned-model result.
+- `docs/attack_v3_design.md` and `configs/attack_v3_stage1.yaml` are revised to Draft 4
+  incorporating D-019 (superseding effect-gate and window-rule portions of D-011, D-014, D-018):
+  - Ground truth decoupled from detectability: window rule requires >= 5 attacked rows +
+    ramp amplitude; residual exceedance removed from window labelling.
+  - Detectability reported via post-hoc strata: boundary, interior-with-residual, interior-without.
+  - Primary dataset generated ungated on shared eligibility; residual-gated sub-analysis reported separately.
+  - Long episode durations (600 s, 900 s) added to resolve interior-only window feasibility
+    (mean 2.50 and 5.50 interior-only windows per episode; 12,616 segments >= 600 s).
+  - Train-only calibration thresholds (speed-band p95, geo glitch 2,887.98 m).
+  - 15+ m/s vertical-rate band treated separately due to small-sample divergence (train baro p95 373.4 m vs all 225.5 m).
+  - Test speed bands with < 100 unique aircraft marked descriptive only (e.g. 0-50 m/s in replay has 27 aircraft).
+  - Oracle detector benchmarked on 3-step ramp and abrupt onset (gross abrupt recall 0.9999 >= 0.99 release gate;
+    gross 3-step ramp 0.9754; clean control FPR 4.58% manip/freeze, 3.87% replay).
+  - Eq. 12 noise semantics clarified: effective noise std is kappa * 25.0 m.
+- Extended calibration report: `docs/calibration_v3_stage1.json` (report_version 4, read-only).
+
 
 ## Models and FL
 - Centralized LSTM (1 layer, hidden 64), seed 42: test accuracy 0.664533,

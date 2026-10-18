@@ -1,5 +1,5 @@
 # REVIEW DRAFT ONLY — no attack code may consume this until human approval.
-version: attack_v3_stage1_draft_3
+version: attack_v3_stage1_draft_4
 status: proposed_unapproved
 global_seed: 42
 injection_realization_global_seeds: [42, 43, 44, 45, 46]
@@ -40,24 +40,46 @@ eligibility: # Applied identically to attacks and matched normal controls.
     optional_labelled_delay_sweep: {enabled: false, values_seconds: [60, 120, 300]}
   geoaltitude_glitch_screen:
     residual_definition: absolute_altitude_change_minus_vertical_rate_times_dt
-    global_q999_threshold_meters: 2880.360
+    train_only_q999_threshold_meters: 2887.980
     handling: exclude_row_and_adjacent_pair_from_baro_plus_geo_eligibility_no_imputation
 
-effect_conditions: # Attacks only; never applied to matched normal controls.
-  retained_kinematics_horizontal: {threshold: speed_band_p95_post_attack_residual, min_consecutive_interior_pairs: 3}
-  altitude: {threshold: vertical_rate_band_p95_post_attack_residual, min_consecutive_interior_pairs: 3}
-  replay_partial_field:
-    source_current_change_at_least: {speed_mps: 1.0, heading_degrees: 1.0, vertical_rate_mps: 0.5}
-    residual_gate: speed_band_p95_hypothetical_partial_replay_residual
-    min_consecutive_interior_pairs: 3
-  replay_full_field: {interior_residual_gate: not_scientifically_applicable, report_boundary_and_interior_separately: true}
-
+# D-019: Decouple ground truth from detectability. Primary dataset generation uses
+# shared eligibility only (ungated). Effect gates are used for reporting strata, NOT
+# as the primary window selection rule.
 window_labelling:
-  attacked_window_rule: at_least_5_attacked_rows_and_at_least_3_effect_qualified_rows
-  ambiguous_window: {label: ambiguous, excluded_from_evaluation: true, excluded_from_track_a_training: true}
+  attacked_window_rule: at_least_5_attacked_rows_and_minimum_effective_ramp_amplitude
+  effect_qualified_rows_required: false # Removed per D-019
+  ambiguous_window:
+    definition: overlap_greater_than_0_and_fewer_than_5_attacked_rows
+    label: ambiguous
+    excluded_from_evaluation: true
+    excluded_from_track_a_training: true
+  detectability_reporting_strata:
+    - boundary
+    - interior_with_residual_qualification
+    - interior_without_residual_qualification
+
+reporting_strata_gates: # Used for post-hoc reporting strata only; primary dataset is ungated.
+  reference_thresholds: train_only_speed_band_p95_horizontal_residual
+  constant_deviation:
+    effect_quantity: onset_step_displacement
+    formula: magnitude_divided_by_3_for_3_step_ramp
+  gradual_deviation:
+    effect_quantities: [per_step_drift, cumulative_offset]
+    per_step_drift_formula: magnitude_divided_by_n_minus_1
+    cumulative_offset_formula: magnitude
+  gaussian_deviation:
+    effect_quantity: pair_residual_or_sigma
+  partial_replay:
+    effect_quantity: current_versus_source_kinematic_discrepancy
+    kinematic_change_at_least: {speed_mps: 1.0, heading_degrees: 1.0, vertical_rate_mps: 0.5}
+    min_consecutive_interior_pairs: 3
+  freeze:
+    effect_quantity: expected_displacement_velocity_times_dt
 
 episodes:
   nominal_duration_seconds: 120
+  long_episode_durations_seconds: [600, 900] # Added per D-019 for interior-only window feasibility
   max_per_segment: 3
   minimum_inter_episode_gap_seconds: 600
   onset: {default_mode: linear_mix, default_steps: 3, gross_positive_control_mode: abrupt_or_linear_mix}
@@ -65,6 +87,7 @@ episodes:
   labels: [none, onset, interior, offset]
   freeze_anchor: last_fully_eligible_lat_lon_row_before_onset
   freeze_duration_tiers_seconds: {subtle: 90, moderate: 120, blatant: 180, gross_positive_control: 300}
+  freeze_90s_note: 3_step_ramp_yields_3_interior_rows_evaluable_at_boundary_stratum_only
 
 attacks:
   stage1_types: [constant_deviation, random_gaussian_deviation, gradual_deviation, replay_partial_field, replay_full_field, freeze_fixed_value]
@@ -80,12 +103,14 @@ attacks:
     deviation_sigma_meters_by_tier: {subtle: 250.0, moderate: 1250.0, blatant: 2750.0, gross_positive_control: 5500.0}
     eq12_noise_kappa_by_tier: {subtle: 0.20, moderate: 0.10, blatant: 0.05, gross_positive_control: 0.0}
     per_step_noise_sigma_meters: 25.0
+    eq12_noise_semantics: effective_noise_std_is_kappa_times_per_step_noise_sigma_meters
 
-tiers: # Manipulation tiers; replay has no horizontal-error tier.
+tiers:
   horizontal_meters: {subtle: 500.0, moderate: 2500.0, blatant: 5500.0, gross_positive_control: 11000.0}
   altitude_residual_calibration_meters:
-    baro_only: {subtle: 25.0, moderate: 100.0, blatant: 200.0, gross_positive_control: 500.0}
-    baro_plus_geo_shared_shift: {subtle: 35.0, moderate: 150.0, blatant: 500.0, gross_positive_control: 1000.0}
+    shared_shift_both_variants: {subtle: 35.0, moderate: 125.0, blatant: 250.0, gross_positive_control: 500.0}
+    calibration_source_band: vertical_rate_0_to_5_mps
+    vertical_rate_15plus_band: treated_separately_or_excluded_from_effect_strata
   horizontal_bearing: deterministic_uniform_0_to_360_degrees_per_episode
 
 prevalence:
@@ -105,14 +130,20 @@ quota_mode:
   unit: type_subtype_or_variant_tier_split
   target_episodes_per_cell: {train: 300, val: 150, test: 150}
   target_unique_aircraft_per_cell: {train: 200, val: 100, test: 100}
-  window_target: derived_from_realized_evaluable_windows_per_episode_not_independently_forced
-  derived_reference_windows_per_episode: {replay_120_seconds: 3.248, freeze_90_120_180_300_seconds: [2.861, 3.156, 3.756, 4.953]}
+  test_reliability:
+    mark_descriptive_only_if_under_100_aircraft: true
+    descriptive_only_cells_known: [replay_120s_test_speed_band_0_50_with_27_aircraft]
+  derived_reference_windows_per_episode:
+    nominal_120s: {qualifying_mean: 3.02, interior_only_mean: 0.0}
+    long_600s: {qualifying_mean: 7.85, interior_only_mean: 2.50}
+    long_900s: {qualifying_mean: 10.84, interior_only_mean: 5.50}
   require_at_least_one_evaluable_window_per_episode: true
   fail_on_capacity_shortfall: true
   report_requested_feasible_and_realized_counts_per_cell: true
 
 evaluation:
   report_boundary_and_interior_only_recall: true
+  report_strata: [boundary, interior_with_residual_qualification, interior_without_residual_qualification]
   report_gated_and_ungated_replay_results: true
   report_full_unfiltered_normal_fpr: true
   report_matched_eligible_maneuver_control_fpr: true
@@ -145,5 +176,8 @@ release_gate:
   require_capacity_analysis: true
   require_five_injection_realizations_or_ci_caveat: true
   oracle_residual_detector:
-    threshold: speed_band_p95_horizontal_residual
+    threshold: train_only_speed_band_p95_horizontal_residual
     require_gross_abrupt_boundary_recall_at_least: 0.99
+    measured_gross_abrupt_boundary_recall: 0.9999
+    measured_gross_default_3_step_ramp_recall: 0.9754
+    measured_fpr_on_maneuver_matched_controls: {manipulation_freeze: 0.0458, replay: 0.0387}
