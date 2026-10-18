@@ -129,53 +129,71 @@ def residual_summary(values: np.ndarray, valid: np.ndarray, first_band: np.ndarr
     return result
 
 
-def count_window_overlap(segment_rows: int, episode_start: int, episode_rows: int, window_rows: int, stride: int, minimum_attacked: int) -> int:
-    """Number of fixed-grid windows with enough overlap with an in-memory episode."""
+def count_window_overlap(segment_rows: int, episode_start: int, episode_rows: int, window_rows: int, stride: int, minimum_attacked: int, ramp_rows: int = 3) -> tuple[int, int]:
+    """Return qualifying and interior-only window counts for an in-memory episode."""
     lower = episode_start + minimum_attacked - window_rows
     upper = episode_start + episode_rows - minimum_attacked
     first = max(0, int(np.ceil(lower / stride)) * stride)
     last = min(segment_rows - window_rows, int(np.floor(upper / stride)) * stride)
-    return max(0, (last - first) // stride + 1)
+    qualifying = max(0, (last - first) // stride + 1)
+    interior_first = max(0, int(np.ceil((episode_start + ramp_rows) / stride)) * stride)
+    interior_last = min(segment_rows - window_rows, int(np.floor((episode_start + episode_rows - ramp_rows - window_rows) / stride)) * stride)
+    interior_only = max(0, (interior_last - interior_first) // stride + 1)
+    return qualifying, interior_only
 
 
 def window_episode_distribution(df: pd.DataFrame, candidate: np.ndarray, episode_rows: int, window_rows: int, stride: int, minimum_attacked: int, seed: int) -> dict[str, object]:
-    """Sample valid in-memory start positions; no episodes or files are created."""
+    """Sample valid in-memory starts; no episodes or files are created."""
     counts: list[int] = []
-    for positions in df.groupby(["icao24", "segment_id"], sort=False).indices.values():
+    interior_counts: list[int] = []
+    rng = np.random.default_rng(seed + episode_rows)
+    groups = list(df.groupby(["icao24", "segment_id"], sort=False).indices.values())
+    selected_groups = rng.choice(len(groups), size=min(1_000, len(groups)), replace=False)
+    for group_index in selected_groups:
+        positions = groups[group_index]
         positions = np.asarray(positions, dtype=np.int64)
         possible = candidate[positions]
         if len(positions) < episode_rows:
             continue
         prefix = np.r_[0, np.cumsum(possible, dtype=np.int32)]
         starts = np.flatnonzero(prefix[episode_rows:] - prefix[:-episode_rows] == episode_rows)
+        if len(starts) > 50:
+            starts = rng.choice(starts, size=50, replace=False)
         for start in starts:
-            counts.append(count_window_overlap(len(positions), int(start), episode_rows, window_rows, stride, minimum_attacked))
+            qualifying, interior_only = count_window_overlap(len(positions), int(start), episode_rows, window_rows, stride, minimum_attacked)
+            counts.append(qualifying)
+            interior_counts.append(interior_only)
     if not counts:
-        return {"candidate_episode_starts": 0, "sampled_starts": 0, "windows_per_episode": qs(np.array([], dtype=float))}
-    rng = np.random.default_rng(seed)
-    chosen = rng.choice(np.asarray(counts), size=min(50_000, len(counts)), replace=False)
+        return {"sampled_segments": len(selected_groups), "sampled_candidate_starts": 0, "windows_per_episode": qs(np.array([], dtype=float))}
+    chosen_indices = rng.choice(np.arange(len(counts)), size=min(50_000, len(counts)), replace=False)
+    chosen = np.asarray(counts)[chosen_indices]
+    chosen_interior = np.asarray(interior_counts)[chosen_indices]
     evaluable = chosen[chosen > 0]
     return {
-        "candidate_episode_starts": len(counts),
+        "sampled_segments": len(selected_groups),
+        "sampled_candidate_starts": len(counts),
         "sampled_starts": len(chosen),
         "windows_per_episode": {**qs(chosen.astype(float)), "min": int(chosen.min()), "max": int(chosen.max()), "mean": float(chosen.mean())},
         "windows_per_evaluable_episode": {**qs(evaluable.astype(float)), "min": int(evaluable.min()), "max": int(evaluable.max()), "mean": float(evaluable.mean())} if len(evaluable) else None,
+        "interior_only_windows_per_episode": {**qs(chosen_interior.astype(float)), "min": int(chosen_interior.min()), "max": int(chosen_interior.max()), "mean": float(chosen_interior.mean())},
     }
 
 
 def capacity_by_split_band(df: pd.DataFrame, mask: np.ndarray, speed_label: np.ndarray, maneuver: np.ndarray) -> dict[str, object]:
+    compact = pd.DataFrame({"split": df["split"].to_numpy()[mask], "band": speed_label[mask], "icao24": df["icao24"].astype(str).to_numpy()[mask], "maneuver": maneuver[mask]})
+    grouped = compact.groupby(["split", "band"], sort=False).agg(rows=("icao24", "size"), aircraft=("icao24", "nunique"))
     result: dict[str, object] = {}
     for split in ("train", "val", "test"):
-        split_mask = df["split"].eq(split).to_numpy() & mask
         bands: dict[str, object] = {}
         for band in ("0_50", "50_100", "100_200", "200_plus"):
-            selected = split_mask & (speed_label == band)
+            value = grouped.loc[(split, band)] if (split, band) in grouped.index else None
+            aircraft = int(value["aircraft"]) if value is not None else 0
             bands[band] = {
-                "rows": int(selected.sum()),
-                "segments": int(df.loc[selected, ["icao24", "segment_id"]].drop_duplicates().shape[0]),
-                "aircraft": int(df.loc[selected, "icao24"].nunique()),
+                "rows": int(value["rows"]) if value is not None else 0,
+                "aircraft": aircraft,
+                "test_band_descriptive_only_if_under_100_aircraft": bool(split == "test" and aircraft < 100),
             }
-        maneuver_counts = pd.Series(maneuver[split_mask]).value_counts().sort_index()
+        maneuver_counts = compact.loc[compact["split"].eq(split), "maneuver"].value_counts().sort_index()
         result[split] = {"by_speed_band": bands, "maneuver_distribution": {str(k): int(v) for k, v in maneuver_counts.items()}}
     return result
 
@@ -205,25 +223,44 @@ def episode_start_capacity(df: pd.DataFrame, eligible_rows: np.ndarray, effect_r
     return output
 
 
-def oracle_boundary_recall(lat: np.ndarray, lon: np.ndarray, prev_lat: np.ndarray, prev_lon: np.ndarray, expected_north: np.ndarray, expected_east: np.ndarray, threshold: np.ndarray, valid: np.ndarray, size: int, seed: int) -> dict[str, object]:
-    """In-memory abrupt horizontal-shift trial for a residual-threshold oracle."""
+def oracle_rate(residual: np.ndarray, threshold: np.ndarray, selected: np.ndarray) -> float | None:
+    return float((residual[selected] >= threshold[selected]).mean()) if len(selected) else None
+
+
+def oracle_boundary_trials(north: np.ndarray, east: np.ndarray, expected_north: np.ndarray, expected_east: np.ndarray, threshold: np.ndarray, pair: np.ndarray, replay_pair: np.ndarray, replay_shift_north: np.ndarray, replay_shift_east: np.ndarray, size: int, seed: int) -> dict[str, object]:
+    """In-memory residual oracle trials; no source table or attack output is edited."""
     rng = np.random.default_rng(seed)
-    available = np.flatnonzero(valid)
-    if len(available) == 0:
-        return {"trial_rows": 0, "tiers": {}}
-    selected = rng.choice(available, size=min(size, len(available)), replace=False)
+    base = rng.choice(np.flatnonzero(pair), size=min(size, int(pair.sum())), replace=False)
+    replay = rng.choice(np.flatnonzero(replay_pair), size=min(size, int(replay_pair.sum())), replace=False)
+    base_natural = np.hypot(north - expected_north, east - expected_east)
     tiers = {"subtle": 500.0, "moderate": 2500.0, "blatant": 5500.0, "gross_positive_control": 11000.0}
-    output: dict[str, object] = {}
-    bearings = rng.uniform(0.0, 2.0 * np.pi, size=len(selected))
-    local_lat = lat[selected]
-    for name, magnitude in tiers.items():
-        north_shift = magnitude * np.cos(bearings)
-        east_shift = magnitude * np.sin(bearings)
-        modified_north = (local_lat - prev_lat[selected]) * 111_320.0 + north_shift
-        modified_east = (lon[selected] - prev_lon[selected]) * 111_320.0 * np.cos(np.deg2rad((local_lat + prev_lat[selected]) / 2.0)) + east_shift
-        modified_residual = np.hypot(modified_north - expected_north[selected], modified_east - expected_east[selected])
-        output[name] = {"horizontal_shift_meters": magnitude, "recall": float((modified_residual >= threshold[selected]).mean())}
-    return {"trial_rows": int(len(selected)), "detector": "speed_band_p95_horizontal_residual", "abrupt_onset": True, "tiers": output}
+    bearings = rng.uniform(0.0, 2.0 * np.pi, size=len(base))
+    manipulation: dict[str, object] = {}
+    for onset, multiplier in (("default_3_step_ramp", 1.0 / 3.0), ("abrupt", 1.0)):
+        onset_results: dict[str, object] = {}
+        for name, magnitude in tiers.items():
+            residual = np.hypot(north[base] + multiplier * magnitude * np.cos(bearings) - expected_north[base], east[base] + multiplier * magnitude * np.sin(bearings) - expected_east[base])
+            onset_results[name] = {"effect_meters": magnitude * multiplier, "recall": float((residual >= threshold[base]).mean())}
+        manipulation[onset] = onset_results
+    freeze: dict[str, object] = {}
+    for onset, keep_current in (("default_3_step_ramp", 2.0 / 3.0), ("abrupt", 0.0)):
+        residual = np.hypot(keep_current * north[base] - expected_north[base], keep_current * east[base] - expected_east[base])
+        freeze[onset] = {name: {"duration_seconds": duration, "recall": float((residual >= threshold[base]).mean())} for name, duration in (("subtle", 90), ("moderate", 120), ("blatant", 180), ("gross_positive_control", 300))}
+    partial: dict[str, object] = {}
+    for onset, multiplier in (("default_3_step_ramp", 1.0 / 3.0), ("abrupt", 1.0)):
+        residual = np.hypot(north[replay] + multiplier * replay_shift_north[replay] - expected_north[replay], east[replay] + multiplier * replay_shift_east[replay] - expected_east[replay])
+        partial[onset] = {"delay_seconds": 300, "recall": float((residual >= threshold[replay]).mean())}
+    return {
+        "trial_rows": {"manipulation_freeze": int(len(base)), "partial_replay": int(len(replay))},
+        "detector": "train_split_speed_band_p95_horizontal_residual",
+        "manipulation": manipulation,
+        "freeze": freeze,
+        "partial_replay": partial,
+        "false_positive_rate_on_maneuver_matched_controls": {
+            "manipulation_freeze_clean_pairs": oracle_rate(base_natural, threshold, base),
+            "partial_replay_matched_clean_pairs": oracle_rate(base_natural, threshold, replay),
+        },
+    }
 
 
 def main() -> None:
@@ -264,7 +301,9 @@ def main() -> None:
     speed_label = band_labels(velocity, SPEED_BANDS)
     dt_label = band_labels(dt, DT_BANDS)
     residual_by_dt_speed = residual_summary(horizontal_residual, pair, dt_label, speed_label)
-    speed_threshold = {band: float(np.quantile(horizontal_residual[pair & (speed_label == band)], 0.95)) for band, _, _ in SPEED_BANDS}
+    train_rows = df["split"].eq("train").to_numpy()
+    speed_threshold_all = {band: float(np.quantile(horizontal_residual[pair & (speed_label == band)], 0.95)) for band, _, _ in SPEED_BANDS}
+    speed_threshold = {band: float(np.quantile(horizontal_residual[pair & train_rows & (speed_label == band)], 0.95)) for band, _, _ in SPEED_BANDS}
     threshold = np.array([speed_threshold.get(str(label), np.inf) for label in speed_label], dtype=float)
 
     vertical_band = band_labels(np.abs(vertrate), VERTICAL_BANDS)
@@ -275,7 +314,14 @@ def main() -> None:
         "baroaltitude": residual_summary(baro_residual, altitude_valid, vertical_band, dt_label),
         "geoaltitude": residual_summary(geo_residual, altitude_valid, vertical_band, dt_label),
     }
-    geo_threshold = float(np.quantile(geo_residual[altitude_valid], 0.999))
+    altitude_threshold_comparison = {}
+    for name, values in (("baroaltitude", baro_residual), ("geoaltitude", geo_residual)):
+        altitude_threshold_comparison[name] = {}
+        for band, _, _ in VERTICAL_BANDS:
+            all_values = values[altitude_valid & (vertical_band == band)]
+            train_values = values[altitude_valid & train_rows & (vertical_band == band)]
+            altitude_threshold_comparison[name][band] = {"all_data_p95": float(np.quantile(all_values, .95)), "train_only_p95": float(np.quantile(train_values, .95)), "difference_train_minus_all": float(np.quantile(train_values, .95) - np.quantile(all_values, .95))}
+    geo_threshold = float(np.quantile(geo_residual[altitude_valid & train_rows], 0.999))
     geo_glitch = altitude_valid & (geo_residual > geo_threshold)
 
     prior = replay_links(df, eligibility, args.replay_delay_seconds, args.replay_tolerance_seconds)
@@ -304,44 +350,67 @@ def main() -> None:
     partial_residual[current] = np.hypot(source_north - expected_north[current], source_east - expected_east[current])
     partial_effect_row = replay_pair & measurable & (partial_residual >= threshold)
     partial_gated = consecutive_members(df, partial_effect_row, minimum=3)
+    replay_shift_north = np.zeros(len(df), dtype=float)
+    replay_shift_east = np.zeros(len(df), dtype=float)
+    replay_shift_north[current] = (lat[prior[current]] - lat[current]) * 111_320.0
+    replay_shift_east[current] = (lon[prior[current]] - lon[current]) * 111_320.0 * np.cos(np.deg2rad(lat[current]))
+
+    manipulation_tiers = {"subtle": 500.0, "moderate": 2500.0, "blatant": 5500.0, "gross_positive_control": 11000.0}
+    manipulation_gate = {name: pair & (magnitude / 3.0 >= threshold) for name, magnitude in manipulation_tiers.items()}
+    gradual_gate = {name: {"per_step_drift": pair & (magnitude / 59.0 >= threshold), "cumulative_offset": pair & (magnitude >= threshold)} for name, magnitude in manipulation_tiers.items()}
+    gaussian_gate = {name: pair & (sigma >= threshold) for name, sigma in (("subtle", 250.0), ("moderate", 1250.0), ("blatant", 2750.0), ("gross_positive_control", 5500.0))}
+    freeze_gate = pair & (expected >= threshold)
 
     def count(mask: np.ndarray) -> dict[str, int]:
         return {"rows": int(mask.sum()), "segments": int(df.loc[mask, ["icao24", "segment_id"]].drop_duplicates().shape[0]), "aircraft": int(df.loc[mask, "icao24"].nunique())}
 
+    long_600 = window_episode_distribution(df, eligibility, 60, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed)
+    long_900 = window_episode_distribution(df, eligibility, 90, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed)
     episode_distribution = {
         "replay_120_seconds_nominal": window_episode_distribution(df, replay_eligible, args.episode_rows, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed),
         "freeze_duration_rows": {
             "90_seconds": window_episode_distribution(df, eligibility, 9, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed),
-            "120_seconds": window_episode_distribution(df, eligibility, 12, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed),
-            "180_seconds": window_episode_distribution(df, eligibility, 18, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed),
-            "300_seconds": window_episode_distribution(df, eligibility, 30, args.window_rows, args.window_stride_rows, args.minimum_attacked_rows, args.seed),
+            "600_seconds_long": long_600,
+            "900_seconds_long": long_900,
+        },
+        "manipulation_long_episode_rows": {
+            "600_seconds": long_600,
+            "900_seconds": long_900,
         },
     }
 
     report = {
-        "report_version": 2,
+        "report_version": 3,
         "read_only": True,
         "input": str(args.input).replace("\\", "/"),
         "split_file": str(args.splits).replace("\\", "/"),
-        "parameters": {"replay_delay_seconds": args.replay_delay_seconds, "replay_tolerance_seconds": args.replay_tolerance_seconds, "window_rows": args.window_rows, "window_stride_rows": args.window_stride_rows, "minimum_attacked_rows": args.minimum_attacked_rows, "effect_gate": "partial replay: any speed/heading/vertical-rate change plus speed-band p95 hypothetical partial-field residual in >=3 consecutive rows"},
+        "parameters": {"replay_delay_seconds": args.replay_delay_seconds, "replay_tolerance_seconds": args.replay_tolerance_seconds, "window_rows": args.window_rows, "window_stride_rows": args.window_stride_rows, "minimum_attacked_rows": args.minimum_attacked_rows, "truth_rule": "at least 5 attacked rows; detectability is reported separately", "reporting_gate": "attack-specific quantity compared to train-split speed-band p95; not used to generate the primary dataset"},
         "split_aircraft_coverage": split_coverage,
         "horizontal_residual_meters_by_dt_then_speed_band": residual_by_dt_speed,
-        "speed_band_p95_threshold_meters": speed_threshold,
+        "speed_band_p95_threshold_meters": {"train_only": speed_threshold, "all_data": speed_threshold_all, "difference_train_minus_all": {band: speed_threshold[band] - speed_threshold_all[band] for band in speed_threshold}},
         "altitude_residual_meters_by_vertical_rate_then_dt": altitude,
+        "altitude_p95_threshold_comparison_meters": altitude_threshold_comparison,
         "geoaltitude_glitch_screen": {"rule": "absolute(altitude_change - vertical_rate*dt) > global q99.9", "threshold_meters": geo_threshold, "rows": int(geo_glitch.sum())},
         "replay": {
             "eligibility_only": count(replay_eligible),
             "partial_field_ungated_pair": count(replay_pair),
             "partial_field_full_effect_gate": count(partial_gated),
             "full_field": {"reporting": "ungated eligibility and boundary-stratified results only; no interior residual gate is scientifically valid", "eligibility_only": count(replay_eligible)},
-            "capacity_after_gate_by_split_speed_band_replay_subtype": {
-                "partial_field_ungated": {"rows": capacity_by_split_band(df, replay_pair, speed_label, maneuver), "episode_starts_120_seconds": episode_start_capacity(df, replay_eligible, None, speed_label, args.episode_rows)},
+            "capacity_by_split_speed_band_replay_subtype": {
+                "partial_field_ungated": {"rows": capacity_by_split_band(df, replay_pair, speed_label, maneuver)},
                 "partial_field_gated": {"rows": capacity_by_split_band(df, partial_gated, speed_label, maneuver), "episode_starts_120_seconds": episode_start_capacity(df, replay_eligible, partial_gated, speed_label, args.episode_rows)},
-                "full_field_eligibility_only": {"rows": capacity_by_split_band(df, replay_eligible & pair, speed_label, maneuver), "episode_starts_120_seconds": episode_start_capacity(df, replay_eligible, None, speed_label, args.episode_rows)},
+                "full_field_eligibility_only": {"rows": capacity_by_split_band(df, replay_eligible & pair, speed_label, maneuver)},
             },
         },
+        "manipulation_and_freeze_capacity_by_split_speed_band": {
+            "shared_eligibility": capacity_by_split_band(df, pair, speed_label, np.full(len(df), "eligible", dtype=object)),
+            "freeze_post_reporting_gate_v_times_dt": capacity_by_split_band(df, freeze_gate, speed_label, np.full(len(df), "freeze_gate", dtype=object)),
+            "constant_default_3_step_ramp_post_gate": {name: capacity_by_split_band(df, mask, speed_label, np.full(len(df), "constant_gate", dtype=object)) for name, mask in manipulation_gate.items()},
+            "gradual_600_second_post_gate": {name: {metric: capacity_by_split_band(df, mask, speed_label, np.full(len(df), metric, dtype=object)) for metric, mask in metrics.items()} for name, metrics in gradual_gate.items()},
+            "gaussian_sigma_post_gate": {name: capacity_by_split_band(df, mask, speed_label, np.full(len(df), "gaussian_gate", dtype=object)) for name, mask in gaussian_gate.items()},
+        },
         "windows_per_episode": episode_distribution,
-        "oracle_boundary_trial": oracle_boundary_recall(lat, lon, previous_lat, previous_lon, expected_north, expected_east, threshold, pair, args.oracle_trial_size, args.seed),
+        "oracle_boundary_trial": oracle_boundary_trials(north, east, expected_north, expected_east, threshold, pair, replay_pair & measurable, replay_shift_north, replay_shift_east, args.oracle_trial_size, args.seed),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True, default=native) + "\n", encoding="utf-8")
