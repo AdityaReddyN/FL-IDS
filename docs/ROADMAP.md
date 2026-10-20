@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — foundation + eligibility/placement implemented (D-020, D-021); attack operations not started**
+**Current phase: 1 — ramps and manipulation primitives implemented (D-020--D-022); episode generation, replay, freeze, gradual deviation, and dataset writing not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -42,6 +42,9 @@ through with `~~` and explain in PROGRESS_LOG).
   (`kinematics.py`, `eligibility.py`, `placement.py`; D-021), with synthetic tests
 - [x] Read-only real-data eligibility/kinematics check script written
   (`scripts/check_eligibility_on_real_data.py`; not yet run)
+- [x] Ramp multipliers plus manipulation primitives (constant/Gaussian horizontal,
+  Eq. 12 noise, altitude `baro_only`/`baro_plus_geo`; D-022) with synthetic tests;
+  episode integration and provenance not started
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

@@ -194,6 +194,23 @@ def test_zero_requests_is_empty() -> None:
     assert rejected == []
 
 
+def test_exhausted_starts_after_overlap_pruning_report_overlap() -> None:
+    times = regular_times(24)
+    valid = np.arange(24 - 12 + 1, dtype=np.int64)
+    accepted, rejected = place_episodes(
+        valid,
+        times,
+        120,
+        3,
+        lambda _k: AscendingGenerator(),
+        min_gap_seconds=0.0,
+    )
+    assert accepted == [(0, 12), (12, 12)]
+    # Starts 0..11 were pruned after the first placement; the third request
+    # has nothing left, and the cause is overlap, not a missing start.
+    assert rejected == [(2, "overlap")]
+
+
 def test_placement_rejects_unsorted_times_and_bad_starts() -> None:
     times = np.array([0, 10, 5, 30], dtype=np.int64)
     with pytest.raises(ValueError, match="sorted"):

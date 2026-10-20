@@ -22,6 +22,7 @@ from .schemas import FEATURE_FIELDS
 
 MAX_CONTACT_LAG_SECONDS = 30.0
 MAX_PAIR_DT_SECONDS = 30.0
+SORT_KEY_COLUMNS = ("icao24", "segment_id", "time")
 
 # Provisional attack-family field requirements (D-021). Each tuple is the union
 # of the fields to modify and the fields needed to measure the effect.
@@ -111,15 +112,36 @@ def row_eligible(df: pd.DataFrame, fields: Iterable[str]) -> np.ndarray:
     return mask
 
 
+def _require_sorted(df: pd.DataFrame) -> None:
+    keys = df[list(SORT_KEY_COLUMNS)]
+    if keys.isna().any().any():
+        raise ValueError(
+            "pair_valid requires non-null icao24, segment_id, and time"
+        )
+    if len(keys) <= 1:
+        return
+    ordered = keys.sort_values(
+        list(SORT_KEY_COLUMNS), kind="mergesort"
+    ).reset_index(drop=True)
+    if not keys.reset_index(drop=True).equals(ordered):
+        raise ValueError(
+            "pair_valid requires rows sorted by "
+            "(icao24, segment_id, time)"
+        )
+
+
 def pair_valid(df: pd.DataFrame) -> np.ndarray:
     """Return a mask marking rows whose preceding row forms a valid pair.
 
     A valid pair stays within one ``(icao24, segment_id)`` group and has
-    ``0 < dt <= 30`` seconds. The first row is always false.
+    ``0 < dt <= 30`` seconds. The first row is always false. The frame must
+    already be sorted by ``(icao24, segment_id, time)``; otherwise a
+    ``ValueError`` is raised.
     """
     _require_columns(df, ("icao24", "segment_id", "time"))
     if len(df) == 0:
         return np.zeros(0, dtype=bool)
+    _require_sorted(df)
 
     same_aircraft = df["icao24"] == df["icao24"].shift(1)
     same_segment = df["segment_id"] == df["segment_id"].shift(1)

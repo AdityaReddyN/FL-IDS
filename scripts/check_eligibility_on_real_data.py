@@ -82,6 +82,14 @@ WINDOW_ROWS = 30
 WINDOW_STRIDE = 10
 SPAN_DURATIONS = (120.0, 600.0, 900.0)
 
+# Read-only attribution context: the human-reported train counts whose gap
+# against REFERENCE this script decomposes. These are not targets and no
+# eligibility or stride convention is tuned to reproduce them.
+REPORTED_TRAIN_COUNTS = {
+    "all_eligible_stride10": 78_211,
+    "replay_stride10": 57_763,
+}
+
 
 class _SingleSegmentRows:
     """Minimal single-segment view for ``eligible_starts`` validation."""
@@ -203,6 +211,75 @@ def stride_filter(starts: np.ndarray, stride: int) -> np.ndarray:
     return starts[(starts % stride) == 0]
 
 
+def whole_table_windows(
+    row_mask: np.ndarray,
+    split_arr: np.ndarray,
+    group_boundary: np.ndarray,
+    window_rows: int,
+    stride: int,
+) -> dict:
+    """Count fully eligible windows without requiring one segment per window.
+
+    This is the "windows may cross segment boundaries" convention. Counts are
+    attributed to the split of the window's first row; crossing windows can
+    therefore span aircraft or splits. The stride convention here is the
+    global absolute row index modulo ``stride``.
+    """
+    n = row_mask.size
+    result = {
+        split: {
+            "all_starts": 0,
+            "stride10_starts": 0,
+            "within_segment_all_starts": 0,
+            "crossing_all_starts": 0,
+            "within_segment_stride10": 0,
+            "crossing_stride10": 0,
+        }
+        for split in SPLIT_NAMES
+    }
+    if n < window_rows:
+        return result
+
+    prefix = np.concatenate(([0], np.cumsum(row_mask, dtype=np.int64)))
+    starts = np.arange(n - window_rows + 1)
+    fully_eligible = (
+        prefix[starts + window_rows] - prefix[starts]
+    ) == window_rows
+    valid = starts[fully_eligible]
+    if valid.size == 0:
+        return result
+
+    boundary_prefix = np.concatenate(
+        ([0], np.cumsum(group_boundary, dtype=np.int64))
+    )
+    crosses = (
+        boundary_prefix[valid + window_rows]
+        - boundary_prefix[valid + 1]
+    ) > 0
+    valid_stride = valid[(valid % stride) == 0]
+    crosses_stride = (
+        boundary_prefix[valid_stride + window_rows]
+        - boundary_prefix[valid_stride + 1]
+    ) > 0
+
+    for split in SPLIT_NAMES:
+        in_split = split_arr[valid] == split
+        in_split_stride = split_arr[valid_stride] == split
+        result[split] = {
+            "all_starts": int(in_split.sum()),
+            "stride10_starts": int(in_split_stride.sum()),
+            "within_segment_all_starts": int((in_split & ~crosses).sum()),
+            "crossing_all_starts": int((in_split & crosses).sum()),
+            "within_segment_stride10": int(
+                (in_split_stride & ~crosses_stride).sum()
+            ),
+            "crossing_stride10": int(
+                (in_split_stride & crosses_stride).sum()
+            ),
+        }
+    return result
+
+
 def main() -> None:
     args = parse_args()
     columns = [
@@ -239,6 +316,8 @@ def main() -> None:
     heading = df["heading"].to_numpy(dtype=float)
     lag = df["contact_lag_seconds"].to_numpy(dtype=float)
     onground = df["onground"].fillna(False).astype(bool).to_numpy()
+    icao_arr = df["icao24"].to_numpy(dtype=object)
+    segment_arr = df["segment_id"].to_numpy()
 
     # --- Calibration-style and strict eligibility -------------------------
     calibration_observed = df[list(FEATURE_FIELDS)].notna().all(axis=1).to_numpy()
@@ -255,6 +334,13 @@ def main() -> None:
     )
     strict_altitude = row_eligible(
         df, REQUIRED_FIELDS["altitude_manipulation_baro_plus_geo"]
+    )
+    flags_any_missing = (
+        df[[f"{field}_missing" for field in FEATURE_FIELDS]]
+        .fillna(True)
+        .astype(bool)
+        .to_numpy()
+        .any(axis=1)
     )
 
     eligibility = {
@@ -395,11 +481,29 @@ def main() -> None:
             foundation_replay_targets,
             pair_mask,
         ),
+        "nan_only_rows_only": (calibration_observed, None),
+        "nan_plus_flags_rows_only": (
+            calibration_observed & ~flags_any_missing,
+            None,
+        ),
     }
     window_counts = {
         name: {
             "all_starts": {split: 0 for split in SPLIT_NAMES},
             "stride10_starts": {split: 0 for split in SPLIT_NAMES},
+        }
+        for name in window_masks
+    }
+    # Extra read-only convention counters for the reported ~3.5% gap.
+    stride_attribution = {
+        name: {
+            split: {
+                "all_starts": 0,
+                "offset_mod10": 0,
+                "enumerated_stride10": 0,
+                "global_index_mod10": 0,
+            }
+            for split in SPLIT_NAMES
         }
         for name in window_masks
     }
@@ -420,6 +524,18 @@ def main() -> None:
             window_counts[name]["stride10_starts"][split] += int(
                 stride_filter(starts, WINDOW_STRIDE).size
             )
+            attribution = stride_attribution[name][split]
+            attribution["all_starts"] += int(starts.size)
+            attribution["offset_mod10"] += int(
+                np.count_nonzero(starts % WINDOW_STRIDE == 0)
+            )
+            attribution["enumerated_stride10"] += int(
+                starts[::WINDOW_STRIDE].size
+            )
+            absolute_starts = positions[starts]
+            attribution["global_index_mod10"] += int(
+                np.count_nonzero(absolute_starts % WINDOW_STRIDE == 0)
+            )
 
     for name in SPLIT_NAMES:
         entry = window_counts["calibration_base_rows_only"]["stride10_starts"]
@@ -433,6 +549,80 @@ def main() -> None:
         entry[f"difference_{name}"] = (
             entry[name] - REFERENCE["replay_stride10_windows"][name]
         )
+
+    # --- Window-capacity attribution (read-only; no tuning) ---------------
+    group_boundary = np.zeros(n, dtype=bool)
+    group_boundary[1:] = (icao_arr[1:] != icao_arr[:-1]) | (
+        segment_arr[1:] != segment_arr[:-1]
+    )
+    cross_boundary = {
+        "calibration_base_rows_only": whole_table_windows(
+            calibration_base,
+            split_arr,
+            group_boundary,
+            WINDOW_ROWS,
+            WINDOW_STRIDE,
+        ),
+        "calibration_replay_rows_only": whole_table_windows(
+            calibration_replay_targets,
+            split_arr,
+            group_boundary,
+            WINDOW_ROWS,
+            WINDOW_STRIDE,
+        ),
+        "nan_only_rows_only": whole_table_windows(
+            calibration_observed,
+            split_arr,
+            group_boundary,
+            WINDOW_ROWS,
+            WINDOW_STRIDE,
+        ),
+    }
+
+    attribution_report = {}
+    for name, reference_key in (
+        ("calibration_base_rows_only", "all_eligible_stride10_windows"),
+        ("calibration_replay_rows_only", "replay_stride10_windows"),
+    ):
+        attribution_report[name] = {}
+        for split in SPLIT_NAMES:
+            entry = dict(stride_attribution[name][split])
+            reference = REFERENCE[reference_key][split]
+            entry["reference_stride10"] = reference
+            entry["offset_mod10_minus_reference"] = (
+                entry["offset_mod10"] - reference
+            )
+            entry["enumerated_minus_offset"] = (
+                entry["enumerated_stride10"] - entry["offset_mod10"]
+            )
+            entry["global_index_minus_offset"] = (
+                entry["global_index_mod10"] - entry["offset_mod10"]
+            )
+            entry["all_starts_minus_offset"] = (
+                entry["all_starts"] - entry["offset_mod10"]
+            )
+            attribution_report[name][split] = entry
+
+    attribution_report["reported_train_counts"] = REPORTED_TRAIN_COUNTS
+    attribution_report["reported_train_reference"] = {
+        "all_eligible_stride10": (
+            REFERENCE["all_eligible_stride10_windows"]["train"]
+        ),
+        "replay_stride10": REFERENCE["replay_stride10_windows"]["train"],
+    }
+    attribution_report["cross_segment_boundary_windows"] = cross_boundary
+    attribution_report["row_mask_variants_offset_mod10"] = {
+        name: {
+            split: stride_attribution[name][split]["offset_mod10"]
+            for split in SPLIT_NAMES
+        }
+        for name in (
+            "nan_only_rows_only",
+            "nan_plus_flags_rows_only",
+            "calibration_base_rows_only",
+            "foundation_strict_rows_and_pairs",
+        )
+    }
 
     # --- Span filter removals by duration --------------------------------
     span_report = {}
@@ -470,8 +660,6 @@ def main() -> None:
             span_report[label][split]["span_removed"] += int(removed)
 
     # --- dt distribution for adjacent same-segment rows ------------------
-    icao_arr = df["icao24"].to_numpy(dtype=object)
-    segment_arr = df["segment_id"].to_numpy()
     same_group = np.zeros(n, dtype=bool)
     same_group[1:] = (icao_arr[1:] == icao_arr[:-1]) & (
         segment_arr[1:] == segment_arr[:-1]
@@ -522,6 +710,7 @@ def main() -> None:
         "missing_flag_vs_nan_disagreement": disagreements,
         "replay": replay,
         "windows": window_counts,
+        "window_capacity_attribution": attribution_report,
         "span_filter": span_report,
         "dt_adjacent_pairs": dt_report,
         "horizontal_residual": {
@@ -569,6 +758,46 @@ def main() -> None:
             f"replay {replay_entry[name]:,} "
             f"(ref {replay_entry[f'reference_{name}']:,})"
         )
+    print("Window-capacity attribution (reported train gap 2,768 / 2,160):")
+    for label, key in (
+        ("base", "calibration_base_rows_only"),
+        ("replay", "calibration_replay_rows_only"),
+    ):
+        entry = attribution_report[key]["train"]
+        print(
+            f"  {label}: offset-mod {entry['offset_mod10']:,} "
+            f"(ref {entry['reference_stride10']:,}; "
+            f"delta {entry['offset_mod10_minus_reference']:+,}); "
+            f"enumerated {entry['enumerated_stride10']:,} "
+            f"({entry['enumerated_minus_offset']:+,}); "
+            f"global-index {entry['global_index_mod10']:,} "
+            f"({entry['global_index_minus_offset']:+,})"
+        )
+    print("Fully eligible windows crossing segment boundaries (train):")
+    for label, key in (
+        ("base", "calibration_base_rows_only"),
+        ("replay", "calibration_replay_rows_only"),
+        ("nan-only", "nan_only_rows_only"),
+    ):
+        entry = cross_boundary[key]["train"]
+        print(
+            f"  {label}: within-segment {entry['within_segment_all_starts']:,} "
+            f"+ crossing {entry['crossing_all_starts']:,} "
+            f"= {entry['all_starts']:,}; stride10 within "
+            f"{entry['within_segment_stride10']:,} + crossing "
+            f"{entry['crossing_stride10']:,}"
+        )
+    print("Row-mask variants (train, stride-10 offset-mod):")
+    for label, key in (
+        ("nan-only", "nan_only_rows_only"),
+        ("nan+flags", "nan_plus_flags_rows_only"),
+        ("calibration-base", "calibration_base_rows_only"),
+        ("strict full", "foundation_strict_rows_and_pairs"),
+    ):
+        value = attribution_report["row_mask_variants_offset_mod10"][key][
+            "train"
+        ]
+        print(f"  {label}: {value:,}")
     print(
         "Pairs with |dlon|>180: "
         f"{antimeridian_pairs:,} of {int(pair_base.sum()):,}"

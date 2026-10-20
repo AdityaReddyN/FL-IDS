@@ -101,3 +101,29 @@ def test_nullable_integers_hash_null_mask_and_values() -> None:
     first = pd.DataFrame({"x": pd.Series([1, None], dtype="Int64")})
     second = pd.DataFrame({"x": pd.Series([1, 2], dtype="Int64")})
     assert content_fingerprint(first) != content_fingerprint(second)
+
+
+def test_schema_fingerprint_canonicalises_string_dtypes() -> None:
+    def frame(dtype) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "s": pd.Series(["alpha", "beta"], dtype=dtype),
+                "x": np.array([1.0, 2.0], dtype=np.float64),
+            }
+        )
+
+    fingerprints = {
+        schema_fingerprint(frame(dtype))
+        for dtype in (
+            object,
+            "str",
+            "string",
+            pd.StringDtype("pyarrow"),
+        )
+    }
+    assert len(fingerprints) == 1
+
+    base = frame(object)
+    as_float32 = base.copy()
+    as_float32["x"] = as_float32["x"].astype(np.float32)
+    assert schema_fingerprint(base) != schema_fingerprint(as_float32)

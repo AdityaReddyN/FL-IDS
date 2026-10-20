@@ -121,6 +121,30 @@ def test_pair_valid_time_and_segment_rules() -> None:
     assert pair_valid(new_aircraft).tolist() == [False, True, False]
 
 
+def test_pair_valid_requires_rows_sorted_by_key() -> None:
+    shuffled = make_segment(4).iloc[[0, 2, 1, 3]].reset_index(drop=True)
+    with pytest.raises(ValueError, match="sorted by"):
+        pair_valid(shuffled)
+
+    aircraft = make_segment(3)
+    aircraft.loc[:, "icao24"] = ["a", "b", "a"]
+    with pytest.raises(ValueError, match="sorted by"):
+        pair_valid(aircraft)
+
+    segment = make_segment(3)
+    segment.loc[:, "segment_id"] = [1, 2, 1]
+    with pytest.raises(ValueError, match="sorted by"):
+        pair_valid(segment)
+
+
+def test_pair_valid_rejects_null_keys() -> None:
+    frame = make_segment(3)
+    frame["time"] = frame["time"].astype(float)
+    frame.loc[1, "time"] = np.nan
+    with pytest.raises(ValueError, match="non-null"):
+        pair_valid(frame)
+
+
 def test_eligible_starts_all_good() -> None:
     df = make_segment(6)
     row_ok = row_eligible(df, REQUIRED_FIELDS["horizontal_manipulation"])

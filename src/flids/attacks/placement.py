@@ -168,6 +168,7 @@ def place_episodes(
 
     accepted: list[tuple[int, int]] = []
     rejected: list[tuple[int, str]] = []
+    overlap_pruned = 0
 
     for request_index in range(n_requested):
         if len(accepted) >= max_per_segment:
@@ -195,15 +196,22 @@ def place_episodes(
             break
 
         if chosen is None:
-            reason = "gap_violation" if saw_gap else "overlap"
-            if not saw_gap and not saw_overlap:
+            if saw_gap:
+                reason = "gap_violation"
+            elif saw_overlap or overlap_pruned > 0:
+                # Starts pruned after earlier placements are no longer in
+                # ``available``; remember that they were removed by overlap.
+                reason = "overlap"
+            else:
                 reason = "no_eligible_start"
             rejected.append((request_index, reason))
             continue
 
         accepted.append((chosen, n_rows))
+        before = available.size
         available = available[
             (available + n_rows <= chosen) | (available >= chosen + n_rows)
         ]
+        overlap_pruned += int(before - available.size)
 
     return accepted, rejected

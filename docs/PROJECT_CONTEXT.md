@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-20, Session 10.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-21, Session 11.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,9 +9,10 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 foundation plus kinematics, eligibility, replay-source lookup, and
-episode placement implemented (D-020, D-021). Gate 0 approved. Attack
-operations and dataset generation are not authorized;
+Phase 1 foundation plus kinematics, eligibility, replay-source lookup, episode
+placement, ramp multipliers, and manipulation primitives (D-020--D-022). Gate 0
+approved. Episode integration, replay, freeze, gradual deviation, window
+labelling, and dataset generation are not authorized;
 `configs/attack_v3_stage1.yaml` remains `status: proposed_unapproved`, so
 `require_approved` refuses generation until the provisional tier/shift/quota
 values are approved.
@@ -64,7 +65,7 @@ values are approved.
   vertical-rate treatment. Still provisional: tier magnitudes, altitude shifts,
   quota cell matrix.
 
-## V3 attack foundation (implemented 2026-10-20)
+## V3 attack foundation (implemented 2026-10-20/21)
 - `src/flids/attacks/`: `config` (YAML load, required keys, approval gate),
   `keys` (natural key uniqueness and `source_row_id`), `fingerprint`
   (Parquet-metadata-independent content and schema hashes), `seeding` (SHA-256
@@ -74,19 +75,28 @@ values are approved.
   fingerprints, seed).
 - `kinematics` (vectorized speed bands, antimeridian-safe pair residual),
   `eligibility` (provisional per-family required fields, row/pair checks,
-  prefix-sum window starts, replay-source lookup), and `placement`
+  prefix-sum window starts, replay-source lookup), `placement`
   (deterministic per-request RNG, max 3 episodes per segment, 600 s gap,
-  0.8x--1.25x actual-span filter) are implemented per D-021.
-- Synthetic fixtures only: 104 tests pass. No attack operation or dataset
-  generation is implemented.
+  0.8x--1.25x actual-span filter), `ramps` (linear-mix quarter steps and
+  abrupt onset/offset conventions, attack/effective row masks), and
+  `manipulation` (constant/Gaussian horizontal displacement, Eq. 12 noise,
+  altitude `baro_only`/`baro_plus_geo`, separate spawned RNG streams) are
+  implemented per D-021/D-022.
+- Synthetic fixtures only: 152 tests pass. No attack episode, dataset writer,
+  window labelling, replay, freeze, gradual deviation, or training exists.
 - `scripts/check_foundation_on_real_data.py` and
-  `scripts/check_eligibility_on_real_data.py` are written but NOT yet run.
-- `REQUIRED_FIELDS` and the span factors (0.8/1.25) are provisional.
-  Replay lookup uses the nearest row overall and rejects it if ineligible; the
+  `scripts/check_eligibility_on_real_data.py` are written but NOT yet run. The
+  latter now includes a read-only attribution block for the reported train
+  stride-10 gaps (offset-mod-10 vs enumerated vs global-index stride,
+  cross-segment-boundary windows, and row-mask variants).
+- `REQUIRED_FIELDS`, the span factors (0.8/1.25), and the D-022 tier
+  magnitudes/sigmas/kappa/altitude shifts are provisional.
+- Replay lookup uses the nearest row overall and rejects it if ineligible; the
   calibration convention searched only eligible rows, so the real-data check
   reports both conventions.
-- PyYAML pinned at 6.0.3. The `.venv` interpreter is Python 3.13.2 (the
-  `requirements.txt` header still says 3.12).
+- PyYAML pinned at 6.0.3. The `.venv` interpreter is Python 3.13.2 with pandas
+  3.0.1; its default string dtype is `str`, not `object`, which the schema
+  fingerprint now canonicalises.
 
 ## Models and FL
 - Centralized LSTM (1 layer, hidden 64), seed 42: test accuracy 0.664533,
@@ -132,8 +142,11 @@ values are approved.
   shifts, and the quota cell matrix are still provisional and must not be
   reported as approved design.
 - D-021 fixes the eligibility/placement conventions but leaves `REQUIRED_FIELDS`
-  and the 0.8/1.25 span factors provisional. Real-data validation of both
-  conventions is pending `scripts/check_eligibility_on_real_data.py`.
+  and the 0.8/1.25 span factors provisional. D-022 fixes the ramp and
+  manipulation conventions; tier magnitudes, sigmas, kappa, and altitude shifts
+  remain provisional, and the ramp oracle recall must be recomputed with
+  `magnitude/4` in Gate 1b. Real-data validation of both conventions is pending
+  `scripts/check_eligibility_on_real_data.py`.
 
 ## Where things are
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`

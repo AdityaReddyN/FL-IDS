@@ -132,8 +132,25 @@ def content_fingerprint(df: pd.DataFrame) -> str:
     return hasher.hexdigest()
 
 
+def _schema_dtype_name(series: pd.Series) -> str:
+    """Return a pandas-version-independent dtype name for the schema hash.
+
+    pandas 2 represents Python strings as ``object`` while pandas 3 uses a
+    ``str``/``StringDtype`` (including Arrow-backed strings). All of these map
+    to the single canonical name ``"string"``; other dtypes keep ``str(dtype)``
+    so genuinely different storage (for example ``int32`` vs ``int64``) remains
+    distinguishable.
+    """
+    dtype = series.dtype
+    if dtype == object or pd.api.types.is_string_dtype(dtype):
+        return "string"
+    return str(dtype)
+
+
 def schema_fingerprint(df: pd.DataFrame) -> str:
-    """Return a SHA-256 hex digest of ordered column names and pandas dtypes."""
-    pairs = [[str(name), str(df[name].dtype)] for name in df.columns]
+    """Return a SHA-256 hex digest of ordered column names and canonical dtypes."""
+    pairs = [
+        [str(name), _schema_dtype_name(df[name])] for name in df.columns
+    ]
     payload = json.dumps(pairs, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(SCHEMA_DOMAIN + payload.encode("utf-8")).hexdigest()
