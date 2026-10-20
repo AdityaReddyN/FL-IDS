@@ -181,3 +181,14 @@ only then implement Stage 1 attack-generation code.
 **Next steps:** Human review and approval of Draft 4 design, Draft 4 YAML, and D-019. Once approved, proceed to Phase 1 attack generator framework implementation.
 **Questions for human:** Do you approve the Draft 4 design, Draft 4 YAML, and proposed decision D-019?
 
+### 2026-10-20 — Session 9 — Claude Code — Phase 1 foundation
+**Goal:** Implement the approved Phase 1 foundation only: config approval gate, natural keys, input fingerprints, deterministic seeding, fixed-split access, output schemas, and manifest skeleton; tests first; no attack operations or dataset generation.
+**Done:** Added `src/flids/attacks/{config,keys,fingerprint,seeding,splits,schemas,manifest}.py`, package `__init__` files, and `tests/conftest.py`; added synthetic tests `tests/test_{config,keys,fingerprint,seeding,splits,schemas,manifest}.py`; wrote `scripts/check_foundation_on_real_data.py` (not run); pinned `pyyaml==6.0.3` in `requirements.txt`; appended D-020; updated ROADMAP and PROJECT_CONTEXT; committed code, tests, and docs.
+**Ran / verified:** `pytest -q` -> `61 passed in 1.23s` (module runs: config 7, keys 8, fingerprint 8, seeding 9, splits 8, schemas 15, manifest 5). Real YAML load: required keys OK, version `attack_v3_stage1_draft_4`, status `proposed_unapproved`; `require_approved` refused as expected. PyYAML 6.0.3 installed in `.venv`.
+**NOT verified:** `scripts/check_foundation_on_real_data.py` was not run (per instruction); therefore real-table natural-key uniqueness, real content/schema fingerprints, and split coverage were not re-measured this session (split format was inspected: 9,995/2,142/2,142 = 14,279 unique). No attack dataset, model training, or sequence artifact was produced.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** `.venv` is Python 3.13.2 although `requirements.txt` labels the environment Python 3.12; the PyYAML wheel is cp313. PyArrow returned a `ChunkedArray` for pandas 3.0 string columns, fixed with `combine_chunks()` in the string fingerprint encoder.
+**Decisions made:** D-020 (APPROVED): design approvals listed there; tier magnitudes, altitude shifts, and quota cell matrix remain provisional.
+**Next steps:** Human runs `scripts/check_foundation_on_real_data.py` and reviews its summary. Then implement attack operations (episode placement, constant/Gaussian/gradual deviation, replay, freeze) only after provisional values are approved or explicitly parameterized. Do not flip the YAML status until then.
+**Questions for human:** Confirm the real-data check output; confirm when tier magnitudes, altitude shifts, and quota cells are approved so the YAML status can change to `approved`.
+

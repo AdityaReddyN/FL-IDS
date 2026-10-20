@@ -195,3 +195,20 @@ intentionally different; comparisons remain on identical splits/evaluation sets.
 **Type:** implementation choice
 **Consequences / risks:** Proposed only; awaiting human approval before any attack-generation code is written.
 
+### D-020 — Stage 1 design approvals and implementation scope (APPROVED; 2026-10-20)
+**Context:** Human review of the Draft 4 design, Draft 4 YAML, and D-019. The human approved the design principles listed below and authorized a foundation-only coding session (config, natural keys, fingerprints, seeding, splits, schemas, manifest). No attack operations or dataset generation were authorized.
+**Decision:** APPROVED:
+1. Decoupled window labelling: >= 5 attacked rows plus a numeric effective-ramp-amplitude rule; no residual qualification in the ground-truth label.
+2. Detectability strata: boundary, interior-with-residual-qualification, and interior-without-residual-qualification, reported post hoc.
+3. Primary dataset generated ungated on shared eligibility, with the residual-gated sub-analysis reported separately.
+4. Long episode durations of 600 s and 900 s alongside the nominal 120 s.
+5. Train-only calibration thresholds (speed-band p95 and geoaltitude glitch screen).
+6. Descriptive-only rule for test speed bands with fewer than 100 unique aircraft.
+7. Eq. 12 noise semantics: effective noise standard deviation is `kappa * 25.0 m`.
+8. Separate treatment of the 15+ m/s vertical-rate band.
+
+These approve the corresponding portions of D-019. NOT approved and still provisional: tier magnitudes, altitude shift magnitudes, and the quota cell matrix.
+**Why:** Separates ontological ground truth from detectability, prevents validation/test leakage, enables interior-only window evaluation for long episodes, and prevents low-power test bands from supporting generalization claims.
+**Type:** scientific design approval + scope approval
+**Consequences / risks:** `configs/attack_v3_stage1.yaml` remains `status: proposed_unapproved` because provisional values are still embedded; `flids.attacks.config.require_approved` therefore refuses dataset generation. Do not report provisional tier, shift, or quota values as approved design.
+

@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — extended-calibration review pending**
+**Current phase: 1 — foundation implemented (D-020); attack operations not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -33,6 +33,11 @@ through with `~~` and explain in PROGRESS_LOG).
   train-only residual thresholds, segment length distribution (12,616 segments >= 600s),
   long-episode interior window yields (600s: 2.50, 900s: 5.50), unique aircraft capacity by speed band,
   corrected oracle boundary benchmarks under 3-step ramp and abrupt onsets, and FPR on maneuver-matched controls (all proposed per D-019)
+- [x] Foundation modules in `src/flids/attacks/`: YAML approval gate, natural keys,
+  content/schema fingerprints, deterministic segment/episode seeding, fixed aircraft
+  split access, five output schemas, manifest skeleton; synthetic tests (D-020)
+- [x] Read-only real-data foundation check script written
+  (`scripts/check_foundation_on_real_data.py`; not yet run)
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

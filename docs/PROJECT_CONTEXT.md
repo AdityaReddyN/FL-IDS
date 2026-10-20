@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-18, Session 8.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-20, Session 9.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,9 +9,10 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 extended-calibration review. Gate 0 approved; attack code is not authorized until the
-human approves the revised `docs/attack_v3_design.md` (Draft 4),
-`configs/attack_v3_stage1.yaml` (Draft 4), and proposed decision D-019.
+Phase 1 foundation implemented (D-020). Gate 0 approved. Attack operations and
+dataset generation are not authorized; `configs/attack_v3_stage1.yaml` remains
+`status: proposed_unapproved`, so `require_approved` refuses generation until the
+provisional tier/shift/quota values are approved.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -54,7 +55,25 @@ human approves the revised `docs/attack_v3_design.md` (Draft 4),
     gross 3-step ramp 0.9754; clean control FPR 4.58% manip/freeze, 3.87% replay).
   - Eq. 12 noise semantics clarified: effective noise std is kappa * 25.0 m.
 - Extended calibration report: `docs/calibration_v3_stage1.json` (report_version 4, read-only).
+- D-020 (2026-10-20) APPROVED: decoupled window labelling (>= 5 attacked rows +
+  ramp amplitude), detectability strata, ungated primary dataset with gated
+  sub-analysis, 600/900 s episodes, train-only thresholds, <100-aircraft
+  descriptive-only rule, Eq. 12 noise semantics, and separate 15+ m/s
+  vertical-rate treatment. Still provisional: tier magnitudes, altitude shifts,
+  quota cell matrix.
 
+## V3 attack foundation (implemented 2026-10-20)
+- `src/flids/attacks/`: `config` (YAML load, required keys, approval gate),
+  `keys` (natural key uniqueness and `source_row_id`), `fingerprint`
+  (Parquet-metadata-independent content and schema hashes), `seeding` (SHA-256
+  segment streams; `spawn_key` episode streams), `splits` (fixed aircraft split
+  with disjointness/coverage checks), `schemas` (five output tables), `manifest`
+  (config hash, git commit, library versions, input fingerprints, seed).
+- Synthetic fixtures only: 61 tests pass. No attack operation or dataset
+  generation is implemented.
+- `scripts/check_foundation_on_real_data.py` is written but NOT yet run.
+- PyYAML pinned at 6.0.3. The `.venv` interpreter is Python 3.13.2 (the
+  `requirements.txt` header still says 3.12).
 
 ## Models and FL
 - Centralized LSTM (1 layer, hidden 64), seed 42: test accuracy 0.664533,
@@ -95,12 +114,14 @@ human approves the revised `docs/attack_v3_design.md` (Draft 4),
 - D-004--D-009 are approved. Manipulation/replay are Phase 1 stage 1; ghost/DoS
   are deferred to stage 2. Track A novelty detection is primary; Track B supervised
   multiclass is an upper-bound reference on identical splits/evaluation sets.
-- D-011--D-018 are proposed review amendments. D-017 records that D-015
-  supersedes relevant D-012 density/tier/quota parts and D-016 supersedes
-  relevant D-013 fixed-split/realization parts. D-018 proposes the current
-  replay/freeze, altitude, quota, eta, and oracle requirements.
+- D-020 approves the D-019 design items listed above. D-011--D-018 remain
+  historical proposals except where superseded. Tier magnitudes, altitude
+  shifts, and the quota cell matrix are still provisional and must not be
+  reported as approved design.
 
 ## Where things are
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`
 - Decisions: `docs/DECISIONS.md`; experiments: `docs/EXPERIMENT_REGISTRY.md`
 - Attack methodology mapping: `docs/attack_generation_methodology.md`
+- Attack foundation: `src/flids/attacks/`, tests in `tests/`, real-data check in
+  `scripts/check_foundation_on_real_data.py`
