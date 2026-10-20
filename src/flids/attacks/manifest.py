@@ -43,6 +43,21 @@ def git_commit_hash(repo_root: str | Path | None = None) -> str:
     return result.stdout.strip()
 
 
+def git_dirty(repo_root: str | Path | None = None) -> bool:
+    """Return True when the work tree has tracked or untracked changes."""
+    root = Path(repo_root) if repo_root is not None else _DEFAULT_REPO_ROOT
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return bool(result.stdout.strip())
+
+
 def library_versions() -> dict[str, str]:
     """Return versions of the libraries that affect generated artifacts."""
     return {
@@ -60,12 +75,14 @@ def build_manifest(
     input_fingerprints: Mapping[str, str],
     git_commit: str | None = None,
     versions: Mapping[str, str] | None = None,
+    dirty: bool | None = None,
 ) -> dict[str, Any]:
     """Build the manifest dictionary for one attack-generation run."""
     return {
         "manifest_version": MANIFEST_VERSION,
         "config_sha256": config_hash(config_path),
         "git_commit": git_commit if git_commit is not None else git_commit_hash(),
+        "git_dirty": dirty if dirty is not None else git_dirty(),
         "library_versions": dict(
             versions if versions is not None else library_versions()
         ),

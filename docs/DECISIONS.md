@@ -212,3 +212,25 @@ These approve the corresponding portions of D-019. NOT approved and still provis
 **Type:** scientific design approval + scope approval
 **Consequences / risks:** `configs/attack_v3_stage1.yaml` remains `status: proposed_unapproved` because provisional values are still embedded; `flids.attacks.config.require_approved` therefore refuses dataset generation. Do not report provisional tier, shift, or quota values as approved design.
 
+### D-021 — Kinematics, eligibility, replay-source, and placement conventions (APPROVED amendments; span factors and field lists PROVISIONAL; 2026-10-20)
+**Context:** Session 2 of the Stage 1 foundation. The human approved the plan with eight amendments covering speed bands, longitude wrapping, replay lookup, caller-built start masks, per-family required fields, per-request randomness, an actual-span filter, and real-data dt reporting.
+**Decision:**
+1. **Speed band is vectorized:** lower-inclusive/upper-exclusive bands `0_50`, `50_100`, `100_200`, `200_plus`; NaN maps to `missing`, negative velocity to `invalid`; scalar input returns a string, array input returns a string array. It never raises on an array.
+2. **Longitude wrapping:** `pair_residual_m` wraps the longitude difference into `[-180, 180]` before converting to metres. The formula otherwise matches `scripts/calibrate_v3_stage1.py` lines 415--419 (north `dlat * 111_320`; east `dlon * 111_320 * cos(midlat)`; expected displacement `velocity * dt * (cos h, sin h)`).
+3. **Replay source lookup:** `replay_source_offsets(times, eligible, delay_s=300, tolerance_s=5)` is pure and per segment. It finds the row nearest to `t - 300 s` over the whole segment, ties to the earlier row, and returns `-1` if the nearest row is absent, is the target or later, or is ineligible. It does not consult target-row eligibility. Times must be strictly increasing.
+4. **Start masks are explicit:** `eligible_starts(segment_rows, n_rows, row_ok_mask, pair_ok_mask)` scans windows with prefix sums. The caller builds `row_ok_mask` as row eligibility plus attack-specific requirements (for replay, a valid source); no replay logic is hidden inside the scan.
+5. **Provisional required fields** (`REQUIRED_FIELDS`; each entry is the union of fields to modify and fields needed to measure the effect):
+   - horizontal manipulation and freeze: lat, lon, velocity, heading
+   - altitude manipulation: baroaltitude, vertrate
+   - altitude manipulation (baro + geo): baroaltitude, geoaltitude, vertrate
+   - partial-field replay: lat, lon, baroaltitude, velocity, heading, vertrate
+   - full-field replay: all seven features
+   "Observed" means the value is not NaN **and** its `*_missing` flag is false. Missing velocity therefore makes lat/lon manipulation ineligible.
+6. **Placement randomness:** each request `k` receives its own generator from `rng_for_request(k)`, intended to be built with `episode_rng(global_seed, icao24, segment_id, k)`. The remaining valid starts are shuffled with that generator and the first candidate satisfying overlap and gap is taken. Rejection reasons: `segment_too_short`, `no_eligible_start`, `overlap`, `gap_violation`, `max_per_segment_exceeded`. Gap failures do not consume candidates. Adding later requests never changes earlier placements.
+7. **Duration and span (PROVISIONAL factors):** `n_rows = duration_seconds // 10`. Valid starts are filtered so the actual span `end_time - start_time` lies within `0.8x`--`1.25x` the requested duration. `MIN_SPAN_FACTOR=0.8` and `MAX_SPAN_FACTOR=1.25` are named implementation choices, not paper values; the real-data check reports how many starts they remove.
+8. **Real-data check:** `scripts/check_eligibility_on_real_data.py` is written but not run. It reports calibration-style and strict eligibility shares, replay-source availability under both lookup conventions, 30-row stride-10 windows, flag/NaN disagreement, `|dlon| > 180` pairs, wrapped residual quantiles against train-only p95, span-filter removals for 120/600/900 s, and adjacent-pair dt quantiles.
+9. **Housekeeping:** the manifest records `git_dirty` from `git status --porcelain`; segment IDs are coerced with `int()` before seeding; null `icao24` or `segment_id` raises `NaturalKeyError`.
+**Why:** Makes the conventions explicit and testable before any attack values are generated; the caller-built masks and per-request RNG prevent hidden coupling between replay, placement, and later requests; wrapping prevents antimeridian pairs from producing false huge residuals.
+**Type:** implementation choice + approved session amendments
+**Consequences / risks:** REQUIRED_FIELDS and the 0.8/1.25 span factors are provisional and may change after the real-data check. The replay lookup deliberately differs from the earlier calibration convention (which selected the nearest row *among eligible rows*); the real-data script reports both so the difference is measured, not assumed to be zero. No attack data were generated.
+

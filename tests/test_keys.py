@@ -77,3 +77,19 @@ def test_same_time_in_different_segments_is_allowed() -> None:
 def test_missing_required_columns_raise() -> None:
     with pytest.raises(NaturalKeyError, match="segment_id"):
         add_natural_keys(pd.DataFrame({"icao24": ["a"], "time": [1]}))
+
+
+def test_null_icao24_raises() -> None:
+    df = pd.DataFrame(
+        {"icao24": [None, "a"], "segment_id": [1, 1], "time": [1, 2]}
+    )
+    with pytest.raises(NaturalKeyError, match="icao24"):
+        add_natural_keys(df)
+
+
+def test_null_segment_id_raises() -> None:
+    df = pd.DataFrame(
+        {"icao24": ["a", "a"], "segment_id": [None, 1], "time": [1, 2]}
+    )
+    with pytest.raises(NaturalKeyError, match="segment_id"):
+        add_natural_keys(df)

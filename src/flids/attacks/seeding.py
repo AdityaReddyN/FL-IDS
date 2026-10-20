@@ -15,6 +15,7 @@ import numpy as np
 
 
 def _segment_entropy(global_seed: int, icao24: str, segment_id: int) -> int:
+    segment_id = int(segment_id)
     key = f"{global_seed}|{icao24}|{segment_id}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(key).digest(), "big")
 

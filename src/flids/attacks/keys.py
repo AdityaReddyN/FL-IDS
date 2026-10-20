@@ -36,6 +36,16 @@ def _duplicate_count(df: pd.DataFrame, columns: tuple[str, ...]) -> int:
     return int(df.duplicated(subset=list(columns), keep="first").sum())
 
 
+def _require_non_null_group_keys(df: pd.DataFrame) -> None:
+    null_columns = [
+        column for column in GROUP_COLUMNS if df[column].isna().any()
+    ]
+    if null_columns:
+        raise NaturalKeyError(
+            "null value(s) in key column(s): " + ", ".join(null_columns)
+        )
+
+
 def add_natural_keys(df: pd.DataFrame) -> pd.DataFrame:
     """Return a copy with ``source_row_id`` and ``segment_row_offset`` added.
 
@@ -46,6 +56,7 @@ def add_natural_keys(df: pd.DataFrame) -> pd.DataFrame:
     _require_columns(df, SOURCE_KEY_COLUMNS)
 
     out = df.copy().reset_index(drop=True)
+    _require_non_null_group_keys(out)
     out["source_row_id"] = np.arange(len(out), dtype=np.int64)
 
     duplicates = _duplicate_count(out, SOURCE_KEY_COLUMNS)
@@ -74,6 +85,7 @@ def add_natural_keys(df: pd.DataFrame) -> pd.DataFrame:
 def assert_natural_key_unique(df: pd.DataFrame) -> None:
     """Raise :class:`NaturalKeyError` if the full natural key is not unique."""
     _require_columns(df, KEY_COLUMNS)
+    _require_non_null_group_keys(df)
     duplicates = _duplicate_count(df, KEY_COLUMNS)
     if duplicates:
         raise NaturalKeyError(f"found {duplicates} duplicate natural key row(s)")

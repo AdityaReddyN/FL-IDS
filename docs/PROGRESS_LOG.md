@@ -192,3 +192,21 @@ only then implement Stage 1 attack-generation code.
 **Next steps:** Human runs `scripts/check_foundation_on_real_data.py` and reviews its summary. Then implement attack operations (episode placement, constant/Gaussian/gradual deviation, replay, freeze) only after provisional values are approved or explicitly parameterized. Do not flip the YAML status until then.
 **Questions for human:** Confirm the real-data check output; confirm when tier magnitudes, altitude shifts, and quota cells are approved so the YAML status can change to `approved`.
 
+
+### 2026-10-20 — Session 10 — Claude Code — Phase 1 kinematics, eligibility, and placement
+**Goal:** Continue the Phase 1 foundation with housekeeping fixes, kinematics, row/pair/window eligibility, replay-source lookup, deterministic episode placement, and a read-only real-data check script; tests first; no attack operations, dataset generation, or model training.
+**Done:**
+- Housekeeping: `manifest.git_dirty()` (from `git status --porcelain`), `int()` coercion of `segment_id` before seeding, and `NaturalKeyError` on null `icao24`/`segment_id`; one test each.
+- Added `src/flids/attacks/kinematics.py`: vectorized speed bands (`missing`, `invalid`, lower-inclusive) and `pair_residual_m` with antimeridian wrapping and the calibration metre convention.
+- Added `src/flids/attacks/eligibility.py`: provisional per-family `REQUIRED_FIELDS`, `row_eligible` (airborne, contact lag 0--30 s and flag, observed value and flag), `pair_valid` (same group, `0 < dt <= 30`), `eligible_starts` (prefix sums, caller-built masks), and `replay_source_offsets` (pure, nearest to `t - 300 s`, tie to earlier, source must be eligible, target-independent).
+- Added `src/flids/attacks/placement.py`: `rows_for_duration` (`duration // 10`), provisional span filter `0.8x`--`1.25x`, per-request RNG placement with max 3 per segment, 600 s minimum gap, and full accept/reject accounting.
+- Added tests `tests/test_kinematics.py` (9), `tests/test_eligibility.py` (15), `tests/test_placement.py` (14).
+- Wrote `scripts/check_eligibility_on_real_data.py`; NOT run. It reports calibration-style vs strict eligibility and replay availability, 30-row stride-10 capacities, flag/NaN disagreement, `|dlon| > 180` pairs, wrapped residual quantiles vs train-only p95, span-filter removals, and adjacent-pair dt quantiles.
+- Appended D-021; updated ROADMAP and PROJECT_CONTEXT.
+**Ran / verified:** Module runs: kinematics `9 passed in 0.94s`; eligibility `15 passed in 0.81s`; placement `14 passed in 0.25s`. Full suite: `104 passed in 1.59s`. The real-data script was syntax-checked with `py_compile` only.
+**NOT verified:** No real-data result was produced; all real-data counts, replay-convention differences, span-filter removal counts, and dt distributions remain unmeasured until the human runs `scripts/check_eligibility_on_real_data.py`. No attack dataset, sequence artifact, or model was produced.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** Pandas 3.0 returns read-only arrays from `to_numpy()`, so `pair_valid` copies before clearing the first element. The first prefix-sum implementation had mismatched pair-count slices; replaced with explicit start-index arrays. Eligibility tests initially exposed a broadcast error, fixed before any real data were involved.
+**Decisions made:** D-021 (approved session amendments; `REQUIRED_FIELDS` and span factors provisional).
+**Next steps:** Human runs `scripts/check_eligibility_on_real_data.py` and reviews its report. Then, after provisional tier/shift/quota values are approved or explicitly parameterized, implement row-level attack operations and episode generation. Do not flip the YAML status yet.
+**Questions for human:** Do the reported foundation counts match the calibration references? Approve the provisional `REQUIRED_FIELDS` and span factors, or request changes before attack operations begin?

@@ -7,6 +7,7 @@ from flids.attacks.manifest import (
     build_manifest,
     config_hash,
     git_commit_hash,
+    git_dirty,
     library_versions,
     write_manifest,
 )
@@ -56,3 +57,21 @@ def test_library_versions_includes_pinned_stack() -> None:
 
 def test_git_commit_hash_reads_current_repository() -> None:
     assert re.fullmatch(r"[0-9a-f]{40}", git_commit_hash(ROOT))
+
+
+def test_git_dirty_is_boolean() -> None:
+    assert isinstance(git_dirty(ROOT), bool)
+
+
+def test_build_manifest_records_git_dirty(tmp_path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_bytes(b"global_seed: 42\n")
+    manifest = build_manifest(
+        config_path=path,
+        global_seed=42,
+        input_fingerprints={},
+        git_commit="deadbeef",
+        versions={"numpy": "test"},
+        dirty=True,
+    )
+    assert manifest["git_dirty"] is True

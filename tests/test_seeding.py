@@ -75,3 +75,14 @@ def test_episode_rng_differs_from_segment_rng_and_other_episodes() -> None:
 def test_negative_episode_index_raises() -> None:
     with pytest.raises(ValueError, match="non-negative"):
         episode_rng(42, "abc123", 7, -1)
+
+
+def test_segment_id_is_coerced_to_int() -> None:
+    assert np.array_equal(
+        draws(segment_rng(42, "abc123", 7.0)),
+        draws(segment_rng(42, "abc123", 7)),
+    )
+    assert np.array_equal(
+        draws(episode_rng(42, "abc123", np.int64(7), 0)),
+        draws(episode_rng(42, "abc123", 7, 0)),
+    )
