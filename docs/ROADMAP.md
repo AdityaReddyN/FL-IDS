@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — ramps and manipulation primitives implemented (D-020--D-022); episode generation, replay, freeze, gradual deviation, and dataset writing not started**
+**Current phase: 1 — composition, gradual deviation, replay, freeze, and detectability primitives implemented (D-020--D-023); episode assembly, window labelling, and dataset writing not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -45,6 +45,10 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Ramp multipliers plus manipulation primitives (constant/Gaussian horizontal,
   Eq. 12 noise, altitude `baro_only`/`baro_plus_geo`; D-022) with synthetic tests;
   episode integration and provenance not started
+- [x] Displacement composition, gradual deviation with realized multipliers,
+  delayed replay, freeze + anchor lookup, and detectability helpers
+  (`manipulation.py`, `ramps.py`, `replay.py`, `freeze.py`, `detectability.py`;
+  D-023) with synthetic tests; assembler, window labelling, and writer not started
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

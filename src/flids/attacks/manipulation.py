@@ -17,6 +17,17 @@ in degrees in ``[0, 360)``; values outside that range raise ``ValueError``
 (they are not wrapped). A resulting latitude outside ``[-90, 90]`` rejects the
 whole call with ``reason="latitude_out_of_range"``; nothing is clipped.
 
+Composition (D-023)
+-------------------
+Displacements are built as metre components by
+:func:`horizontal_displacement_constant` or
+:func:`horizontal_displacement_gaussian`, optionally perturbed by
+:func:`add_scaled_eq12_noise`, and only then converted to degrees by
+:func:`apply_horizontal_displacement`. Eq. 12 noise is added to the
+displacement components *before* the conversion and is scaled by ``a_t``, so it
+vanishes with the ramp and cannot create a boundary jump. Stage 1 applies
+Eq. 12 noise to horizontal displacement only; there is no altitude noise.
+
 Provisional values (D-022, copied from the proposed YAML for convenience; the
 functions never read the YAML and always take explicit arguments)
 --------------------------------------------------------------------------
@@ -200,6 +211,163 @@ def _horizontal_result(
     )
 
 
+def _multipliers_only(values) -> np.ndarray:
+    """Validate a one-dimensional multiplier array of derived length."""
+    array = _one_dimensional(values, "a")
+    if not np.all(np.isfinite(array)):
+        raise ValueError("a must contain only finite values")
+    if np.any(array < 0.0):
+        raise ValueError("a must be non-negative")
+    return array
+
+
+def _magnitude_and_bearing(magnitude_m: float, bearing_deg: float):
+    magnitude = float(magnitude_m)
+    if not np.isfinite(magnitude) or magnitude < 0.0:
+        raise ValueError("magnitude_m must be finite and non-negative")
+
+    bearing = float(bearing_deg)
+    if not np.isfinite(bearing) or not 0.0 <= bearing < 360.0:
+        raise ValueError("bearing_deg must be finite and in [0, 360)")
+    return magnitude, np.deg2rad(bearing)
+
+
+def horizontal_displacement_constant(
+    a,
+    magnitude_m: float,
+    bearing_deg: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(north_m, east_m)`` for a constant displacement (D-023).
+
+    North is ``magnitude_m * cos(bearing) * a_t`` and east is
+    ``magnitude_m * sin(bearing) * a_t``. The components are already scaled by
+    ``a_t``; pass them to :func:`apply_horizontal_displacement`, which does not
+    scale them again.
+    """
+    multipliers = _multipliers_only(a)
+    magnitude, radians = _magnitude_and_bearing(magnitude_m, bearing_deg)
+    north_m = magnitude * np.cos(radians) * multipliers
+    east_m = magnitude * np.sin(radians) * multipliers
+    return north_m, east_m
+
+
+def horizontal_displacement_gaussian(
+    a,
+    sigma_m: float,
+    rng,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return per-row ``N(0, sigma_m**2)`` components scaled by ``a_t``.
+
+    Both components are drawn independently per row in one ``(n, 2)`` draw.
+    Use :func:`manipulation_streams` so Eq. 12 noise cannot perturb these
+    draws.
+    """
+    multipliers = _multipliers_only(a)
+
+    sigma = float(sigma_m)
+    if not np.isfinite(sigma) or sigma < 0.0:
+        raise ValueError("sigma_m must be finite and non-negative")
+
+    draws = rng.normal(
+        loc=0.0, scale=sigma, size=(multipliers.size, 2)
+    )
+    north_m = draws[:, 0] * multipliers
+    east_m = draws[:, 1] * multipliers
+    return north_m, east_m
+
+
+def apply_horizontal_displacement(
+    lat,
+    lon,
+    a,
+    north_m,
+    east_m,
+) -> ManipulationResult:
+    """Convert metre components to a :class:`ManipulationResult` (D-023).
+
+    ``north_m`` and ``east_m`` must already include the ``a_t`` scaling. The
+    conversion and validation are exactly those used by the constant and
+    Gaussian wrappers: only ``a_t > 0`` rows change, NaN/inf on an active row
+    raises, and a latitude outside ``[-90, 90]`` rejects the call.
+    """
+    lat_in, lon_in = _paired_arrays(lat, lon, "lat", "lon")
+    multipliers = _multipliers(a, lat_in.size)
+    north_in = _one_dimensional(north_m, "north_m")
+    east_in = _one_dimensional(east_m, "east_m")
+    if north_in.shape != lat_in.shape or east_in.shape != lat_in.shape:
+        raise ValueError(
+            "north_m and east_m must have the same shape as lat"
+        )
+
+    active = multipliers > ACTIVE_THRESHOLD
+    _require_finite_on_active(
+        active,
+        {
+            "lat": lat_in,
+            "lon": lon_in,
+            "north_m": north_in,
+            "east_m": east_in,
+        },
+    )
+    return _horizontal_result(
+        lat_in, lon_in, multipliers, north_in, east_in
+    )
+
+
+def add_scaled_eq12_noise(
+    values_m_north,
+    values_m_east,
+    a,
+    kappa: float,
+    per_step_sigma_m: float,
+    rng,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Add ``a_t * kappa * N(0, per_step_sigma**2)`` to displacement (D-023).
+
+    This is the composition-time Eq. 12 term: it operates on metre components
+    before conversion, and scaling by ``a_t`` makes it vanish with the ramp so
+    the onset cannot create a boundary jump. Stage 1 has no altitude noise.
+    With ``kappa == 0`` or no active rows, no draws are made. The inputs are
+    copied and never mutated.
+    """
+    north_in, east_in = _paired_arrays(
+        values_m_north, values_m_east, "values_m_north", "values_m_east"
+    )
+    multipliers = _multipliers(a, north_in.size)
+
+    kappa_value = float(kappa)
+    if not np.isfinite(kappa_value) or kappa_value < 0.0:
+        raise ValueError("kappa must be finite and non-negative")
+    per_step_sigma = float(per_step_sigma_m)
+    if not np.isfinite(per_step_sigma) or per_step_sigma < 0.0:
+        raise ValueError(
+            "per_step_sigma_m must be finite and non-negative"
+        )
+
+    active = multipliers > ACTIVE_THRESHOLD
+    _require_finite_on_active(
+        active, {"values_m_north": north_in, "values_m_east": east_in}
+    )
+
+    north_out = north_in.copy()
+    east_out = east_in.copy()
+    if kappa_value > 0.0 and np.any(active):
+        draws = rng.normal(
+            loc=0.0,
+            scale=per_step_sigma,
+            size=(north_in.size, 2),
+        )
+        north_out[active] = (
+            north_in[active]
+            + multipliers[active] * kappa_value * draws[active, 0]
+        )
+        east_out[active] = (
+            east_in[active]
+            + multipliers[active] * kappa_value * draws[active, 1]
+        )
+    return north_out, east_out
+
+
 def constant_horizontal(
     lat,
     lon,
@@ -209,28 +377,19 @@ def constant_horizontal(
 ) -> ManipulationResult:
     """Apply a constant horizontal displacement of ``magnitude_m``.
 
-    North is ``magnitude_m * cos(bearing)``; east is
-    ``magnitude_m * sin(bearing)``; both are multiplied by ``a_t``. The
-    bearing must lie in ``[0, 360)``; 360 raises rather than wrapping.
+    Thin wrapper around :func:`horizontal_displacement_constant` and
+    :func:`apply_horizontal_displacement`; outputs are unchanged from D-022.
     """
     lat_in, lon_in = _paired_arrays(lat, lon, "lat", "lon")
     multipliers = _multipliers(a, lat_in.size)
+    _require_finite_on_active(
+        multipliers > ACTIVE_THRESHOLD, {"lat": lat_in, "lon": lon_in}
+    )
 
-    magnitude = float(magnitude_m)
-    if not np.isfinite(magnitude) or magnitude < 0.0:
-        raise ValueError("magnitude_m must be finite and non-negative")
-
-    bearing = float(bearing_deg)
-    if not np.isfinite(bearing) or not 0.0 <= bearing < 360.0:
-        raise ValueError("bearing_deg must be finite and in [0, 360)")
-
-    active = multipliers > ACTIVE_THRESHOLD
-    _require_finite_on_active(active, {"lat": lat_in, "lon": lon_in})
-
-    radians = np.deg2rad(bearing)
-    north_m = magnitude * np.cos(radians) * multipliers
-    east_m = magnitude * np.sin(radians) * multipliers
-    return _horizontal_result(
+    north_m, east_m = horizontal_displacement_constant(
+        multipliers, magnitude_m, bearing_deg
+    )
+    return apply_horizontal_displacement(
         lat_in, lon_in, multipliers, north_m, east_m
     )
 
@@ -244,24 +403,58 @@ def gaussian_horizontal(
 ) -> ManipulationResult:
     """Apply per-row independent ``N(0, sigma_m**2)`` north/east offsets.
 
-    Each component is drawn independently per row and multiplied by ``a_t``.
-    Use :func:`manipulation_streams` so Eq. 12 noise cannot perturb these draws.
+    Thin wrapper around :func:`horizontal_displacement_gaussian` and
+    :func:`apply_horizontal_displacement`; outputs are unchanged from D-022.
     """
     lat_in, lon_in = _paired_arrays(lat, lon, "lat", "lon")
     multipliers = _multipliers(a, lat_in.size)
+    _require_finite_on_active(
+        multipliers > ACTIVE_THRESHOLD, {"lat": lat_in, "lon": lon_in}
+    )
 
-    sigma = float(sigma_m)
-    if not np.isfinite(sigma) or sigma < 0.0:
-        raise ValueError("sigma_m must be finite and non-negative")
-
-    active = multipliers > ACTIVE_THRESHOLD
-    _require_finite_on_active(active, {"lat": lat_in, "lon": lon_in})
-
-    draws = rng.normal(loc=0.0, scale=sigma, size=(lat_in.size, 2))
-    north_m = draws[:, 0] * multipliers
-    east_m = draws[:, 1] * multipliers
-    return _horizontal_result(
+    north_m, east_m = horizontal_displacement_gaussian(
+        multipliers, sigma_m, rng
+    )
+    return apply_horizontal_displacement(
         lat_in, lon_in, multipliers, north_m, east_m
+    )
+
+
+def gradual_horizontal(
+    lat,
+    lon,
+    a,
+    magnitude_m: float,
+    bearing_deg: float,
+) -> ManipulationResult:
+    """Apply an increasing displacement across all rows of an episode (D-023).
+
+    The displacement fraction is ``g_i = i / (N - 1)`` for row ``i`` of ``N``
+    rows (``g = 1`` when ``N == 1``), so the displacement is
+    ``magnitude_m * g_i * a_i`` along ``bearing_deg``. The returned
+    ``multipliers`` are the **realized** multipliers ``a_i * g_i``; this is
+    what "effective row" (``>= 0.5``) must be evaluated against. A gradual
+    episode therefore needs enough rows to have at least five effective rows;
+    the assembler rejects shorter episodes in Session 3c.
+    """
+    lat_in, lon_in = _paired_arrays(lat, lon, "lat", "lon")
+    multipliers = _multipliers(a, lat_in.size)
+    _require_finite_on_active(
+        multipliers > ACTIVE_THRESHOLD, {"lat": lat_in, "lon": lon_in}
+    )
+    magnitude, radians = _magnitude_and_bearing(magnitude_m, bearing_deg)
+
+    n_rows = lat_in.size
+    if n_rows == 1:
+        fractions = np.ones(1, dtype=float)
+    else:
+        fractions = np.arange(n_rows, dtype=float) / (n_rows - 1)
+
+    realized = multipliers * fractions
+    north_m = magnitude * np.cos(radians) * realized
+    east_m = magnitude * np.sin(radians) * realized
+    return apply_horizontal_displacement(
+        lat_in, lon_in, realized, north_m, east_m
     )
 
 

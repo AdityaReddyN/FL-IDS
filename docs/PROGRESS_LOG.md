@@ -226,3 +226,20 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-022 (approved with amendments; tier magnitudes, sigmas, kappa, and altitude shifts remain provisional).
 **Next steps:** Human runs `scripts/check_eligibility_on_real_data.py` and reviews the attribution output. Then, if authorized, integrate these primitives into episode generation; Gate 1b must recompute the ramp oracle with magnitude/4. Do not start replay, freeze, gradual deviation, window labelling, or the dataset writer without approval.
 **Questions for human:** Does the attribution output explain the reported train-stride gaps? Confirm the D-022 conventions before episode integration.
+
+### 2026-10-21 — Session 12 — Claude Code — Phase 1 composition, gradual, replay, freeze, detectability (Session 3b)
+**Goal:** Add pure displacement composition, gradual deviation, delayed replay, freeze, and detectability helpers for one episode, tests first, with no assembler, window labelling, writer, dataset generation, or training.
+**Done:**
+- `manipulation.py`: added `horizontal_displacement_constant`, `horizontal_displacement_gaussian`, `apply_horizontal_displacement`, `add_scaled_eq12_noise`, and `gradual_horizontal`; `constant_horizontal` and `gaussian_horizontal` are now thin wrappers. Eq. 12 noise is applied to displacement components before conversion and scaled by `a_t`; Stage 1 has horizontal noise only (D-023).
+- `ramps.py`: added `effective_row_count(realized_multipliers)` (`>= 0.5`).
+- New `replay.py`: `replay_fields` with original-array sources, `(1-a)*current + a*source`, shortest-arc heading/longitude, strict `0 <= source < i`, whole-episode `"no_replay_source"` rejection, per-row delays, and partial/full field constants.
+- New `freeze.py`: `freeze_lat_lon` and `anchor_from_offsets` (strictly before start, finite values, default 30 s age limit, `None` when unusable).
+- New `detectability.py`: `residual_series` (pair `(k-1, k)`, earlier row's velocity/heading, first `NaN`) and `injected_displacement_m`.
+- Tests: `tests/test_composition.py` (14), `tests/test_replay.py` (17), `tests/test_freeze.py` (13), `tests/test_detectability.py` (6), plus two `effective_row_count` tests in `tests/test_ramps.py`. Pre-refactor wrapper outputs were captured as float-hex references from commit 3b64bb0 before any edit.
+**Ran / verified:** `tests/test_composition.py` -> `14 passed`; `test_replay.py` -> `17 passed`; `test_freeze.py` -> `13 passed`; `test_detectability.py` -> `6 passed`; `test_manipulation.py` -> `36 passed`; `test_ramps.py` -> `10 passed`; full suite -> `204 passed in 2.25s`. Wrapper outputs are bit-for-bit identical to the pre-refactor implementation. The mandatory 60-row/delay-30 test passes, and the delay-10 test fails under an in-place implementation by construction.
+**NOT verified:** No real data touched; no episode assembler, window labels, dataset writer, sequence artifact, or model exists. The 5-effective-row rejection and `"no_freeze_anchor"`/`"insufficient_effective_rows"` handling are not implemented (Session 3c). `add_scaled_eq12_noise` was checked statistically, not against Li et al.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** The `[-180, 180)` wrap can round to `+180.0` for tiny negative inputs; replay and freeze map the `+180` endpoint to `-180` and heading maps `360` to `0`. The existing D-022 `_new_longitude` was left unchanged to preserve bit-exact wrapper outputs.
+**Decisions made:** D-023 (approved with six session amendments; tier values remain provisional).
+**Next steps:** Session 3c may build the episode assembler around these primitives, including `"insufficient_effective_rows"` and `"no_freeze_anchor"` rejection. Gate 1b still must recompute the ramp oracle with `magnitude/4`. Do not start window labelling, the dataset writer, or generation without approval.
+**Questions for human:** Confirm the realized-multiplier effective-row convention and the 30 s anchor-age limit before the assembler consumes them. Should partial replay treat a missing source for an active row as an episode rejection (current) or as a candidate rejection at placement time?

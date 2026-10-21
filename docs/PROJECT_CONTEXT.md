@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-21, Session 11.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-21, Session 12.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -10,8 +10,9 @@ in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.56
 
 ## Current phase
 Phase 1 foundation plus kinematics, eligibility, replay-source lookup, episode
-placement, ramp multipliers, and manipulation primitives (D-020--D-022). Gate 0
-approved. Episode integration, replay, freeze, gradual deviation, window
+placement, ramp multipliers, manipulation primitives, displacement composition,
+gradual deviation, delayed replay, freeze, and detectability helpers
+(D-020--D-023). Gate 0 approved. Episode assembly/integration, window
 labelling, and dataset generation are not authorized;
 `configs/attack_v3_stage1.yaml` remains `status: proposed_unapproved`, so
 `require_approved` refuses generation until the provisional tier/shift/quota
@@ -78,12 +79,25 @@ values are approved.
   prefix-sum window starts, replay-source lookup), `placement`
   (deterministic per-request RNG, max 3 episodes per segment, 600 s gap,
   0.8x--1.25x actual-span filter), `ramps` (linear-mix quarter steps and
-  abrupt onset/offset conventions, attack/effective row masks), and
-  `manipulation` (constant/Gaussian horizontal displacement, Eq. 12 noise,
-  altitude `baro_only`/`baro_plus_geo`, separate spawned RNG streams) are
-  implemented per D-021/D-022.
-- Synthetic fixtures only: 152 tests pass. No attack episode, dataset writer,
-  window labelling, replay, freeze, gradual deviation, or training exists.
+  abrupt onset/offset conventions, attack/effective row masks, and
+  `effective_row_count` on realized multipliers), and `manipulation`
+  (constant/Gaussian horizontal primitives, Eq. 12 noise, altitude
+  `baro_only`/`baro_plus_geo`, separate spawned RNG streams) are implemented
+  per D-021/D-022.
+- D-023 adds `horizontal_displacement_constant`,
+  `horizontal_displacement_gaussian`, `apply_horizontal_displacement`,
+  `add_scaled_eq12_noise` (Eq. 12 noise on displacement, scaled by `a_t`,
+  horizontal only), and `gradual_horizontal` (`g_i = i/(N-1)`; realized
+  multipliers returned). `replay` provides original-array delayed replay with
+  strict sources and whole-episode `"no_replay_source"` rejection; `freeze`
+  provides anchor blending plus `anchor_from_offsets` (strictly before start,
+  30 s default age); `detectability` provides `residual_series` and
+  `injected_displacement_m` for reporting strata.
+- Synthetic fixtures only: 204 tests pass. No attack episode, dataset writer,
+  window labelling, assembler, or training exists. Gradual episodes are
+  documented as needing >= 5 effective rows; the assembler (Session 3c) will
+  reject shorter ones with `"insufficient_effective_rows"` and missing freeze
+  anchors with `"no_freeze_anchor"`.
 - `scripts/check_foundation_on_real_data.py` and
   `scripts/check_eligibility_on_real_data.py` are written but NOT yet run. The
   latter now includes a read-only attribution block for the reported train
@@ -145,7 +159,10 @@ values are approved.
   and the 0.8/1.25 span factors provisional. D-022 fixes the ramp and
   manipulation conventions; tier magnitudes, sigmas, kappa, and altitude shifts
   remain provisional, and the ramp oracle recall must be recomputed with
-  `magnitude/4` in Gate 1b. Real-data validation of both conventions is pending
+  `magnitude/4` in Gate 1b. D-023 fixes composition, gradual realized
+  multipliers, replay/freeze semantics, and detectability conventions; its
+  5-effective-row rule and freeze-anchor rejection are documented but not yet
+  enforced. Real-data validation of both conventions is pending
   `scripts/check_eligibility_on_real_data.py`.
 
 ## Where things are

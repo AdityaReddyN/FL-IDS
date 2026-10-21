@@ -101,3 +101,14 @@ def attack_row_mask(multipliers) -> np.ndarray:
 def effective_row_mask(multipliers) -> np.ndarray:
     """Return ``a_t >= 0.5`` for each row."""
     return _multiplier_array(multipliers) >= EFFECTIVE_THRESHOLD
+
+
+def effective_row_count(multipliers) -> int:
+    """Return the number of effective rows (``a_t >= 0.5``).
+
+    For gradual deviation the caller must pass the *realized* multipliers
+    ``a_t * g_t``, not the ramp multipliers alone (D-023). Gradual episodes
+    need at least five effective rows before the assembler will accept them;
+    that rejection belongs to Session 3c and is not implemented here.
+    """
+    return int(np.count_nonzero(effective_row_mask(multipliers)))

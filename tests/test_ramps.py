@@ -5,6 +5,7 @@ from flids.attacks.ramps import (
     ATTACK_THRESHOLD,
     EFFECTIVE_THRESHOLD,
     attack_row_mask,
+    effective_row_count,
     effective_row_mask,
     ramp_multipliers,
 )
@@ -107,6 +108,21 @@ def test_attack_and_effective_row_masks() -> None:
     abrupt, _ = ramp_multipliers(5, mode="abrupt")
     assert attack_row_mask(abrupt).all()
     assert effective_row_mask(abrupt).all()
+
+
+def test_effective_row_count_matches_effective_mask() -> None:
+    a, _ = ramp_multipliers(9, ramp_rows=3, mode="linear_mix")
+    assert effective_row_count(a) == int(effective_row_mask(a).sum()) == 7
+
+    abrupt, _ = ramp_multipliers(5, mode="abrupt")
+    assert effective_row_count(abrupt) == 5
+    assert effective_row_count([]) == 0
+
+
+def test_effective_row_count_is_exactly_the_five_row_threshold() -> None:
+    assert effective_row_count(np.array([0.49, 0.5, 0.51])) == 2
+    with pytest.raises(ValueError, match="finite"):
+        effective_row_count(np.array([1.0, np.nan]))
 
 
 def test_mask_helpers_validate_input() -> None:
