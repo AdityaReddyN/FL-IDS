@@ -4,6 +4,11 @@ Each table's columns are defined in exactly one ordered dictionary. The
 validator, the empty-table writer, and the tests all read those dictionaries,
 so there is a single source of truth for names, dtypes, nullability, and
 enumerated string values.
+
+``attacked_rows.ramp_multiplier`` and ``step_labels.ramp_multiplier`` store
+the **realized** multiplier ``a_t`` (``a_t * g_t`` for gradual deviation), the
+same value used for the effective-row rule (D-023/D-024). The ``windows``
+table stores per-window truth labels and strata for one segment.
 """
 
 from __future__ import annotations
@@ -15,6 +20,8 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+
+from .windows import WINDOW_LABELS, WINDOW_STRATA
 
 FEATURE_FIELDS: tuple[str, ...] = (
     "lat",
@@ -136,12 +143,30 @@ MODIFIED_ROW_PROVENANCE_SCHEMA: dict[str, ColumnSpec] = {
     "validation_status": ColumnSpec("str"),
 }
 
+WINDOWS_SCHEMA: dict[str, ColumnSpec] = {
+    "window_id": ColumnSpec("int64"),
+    "icao24": ColumnSpec("str"),
+    "segment_id": ColumnSpec("int32"),
+    "split": ColumnSpec("str"),
+    "start_offset": ColumnSpec("int32"),
+    "n_rows": ColumnSpec("int32"),
+    "label": ColumnSpec("str", allowed=WINDOW_LABELS),
+    "stratum": ColumnSpec("str", allowed=WINDOW_STRATA),
+    "n_attack_rows": ColumnSpec("int32"),
+    "n_effective_rows": ColumnSpec("int32"),
+    "episode_id": ColumnSpec("int64"),
+    "attack_family": ColumnSpec("str", nullable=True),
+    "attack_subtype": ColumnSpec("str", nullable=True),
+    "tier": ColumnSpec("str", nullable=True),
+}
+
 TABLES: dict[str, dict[str, ColumnSpec]] = {
     "attacked_rows": ATTACKED_ROWS_SCHEMA,
     "step_labels": STEP_LABELS_SCHEMA,
     "episodes": EPISODES_SCHEMA,
     "rejected_candidates": REJECTED_CANDIDATES_SCHEMA,
     "modified_row_provenance": MODIFIED_ROW_PROVENANCE_SCHEMA,
+    "windows": WINDOWS_SCHEMA,
 }
 TABLE_NAMES: tuple[str, ...] = tuple(TABLES)
 

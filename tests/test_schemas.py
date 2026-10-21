@@ -11,6 +11,7 @@ from flids.attacks.schemas import (
     validate_table,
     write_empty_table,
 )
+from flids.attacks.windows import WINDOW_LABELS, WINDOW_STRATA
 
 
 def sample_value(name: str, spec: ColumnSpec):
@@ -97,3 +98,30 @@ def test_disallowed_enum_value_is_rejected() -> None:
     df = one_valid_row("episodes", onset_mode="bogus")
     with pytest.raises(SchemaError, match="onset_mode"):
         validate_table(df, "episodes")
+
+
+def test_windows_table_accepts_declared_labels_and_strata() -> None:
+    for label in WINDOW_LABELS:
+        for stratum in WINDOW_STRATA:
+            df = one_valid_row(
+                "windows", label=label, stratum=stratum
+            )
+            validate_table(df, "windows")
+
+
+def test_windows_table_rejects_bad_label_and_stratum() -> None:
+    with pytest.raises(SchemaError, match="label"):
+        validate_table(
+            one_valid_row("windows", label="maybe"), "windows"
+        )
+    with pytest.raises(SchemaError, match="stratum"):
+        validate_table(
+            one_valid_row("windows", stratum="edge"), "windows"
+        )
+
+
+def test_windows_table_is_registered() -> None:
+    assert "windows" in TABLE_NAMES
+    assert list(empty_table("windows").columns) == list(
+        TABLES["windows"]
+    )

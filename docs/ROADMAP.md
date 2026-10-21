@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — composition, gradual deviation, replay, freeze, and detectability primitives implemented (D-020--D-023); episode assembly, window labelling, and dataset writing not started**
+**Current phase: 1 — composition, episode assembly, window labelling, and detectability implemented (D-020--D-024); dataset assembler, selection logic, and writer not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -49,6 +49,11 @@ through with `~~` and explain in PROGRESS_LOG).
   delayed replay, freeze + anchor lookup, and detectability helpers
   (`manipulation.py`, `ramps.py`, `replay.py`, `freeze.py`, `detectability.py`;
   D-023) with synthetic tests; assembler, window labelling, and writer not started
+- [x] Episode assembly with effective-row and no-op rejections, v2-anchored
+  window labelling with boundary/interior-only strata, and the sixth `windows`
+  schema table (`episode.py`, `windows.py`, `schemas.py`; D-024) with synthetic
+  tests; real-data window-yield script written but NOT run; dataset assembler,
+  selection logic, writer, and CLI not started
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

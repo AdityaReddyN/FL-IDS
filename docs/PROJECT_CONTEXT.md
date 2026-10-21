@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-21, Session 12.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-21, Session 13.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -11,12 +11,12 @@ in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.56
 ## Current phase
 Phase 1 foundation plus kinematics, eligibility, replay-source lookup, episode
 placement, ramp multipliers, manipulation primitives, displacement composition,
-gradual deviation, delayed replay, freeze, and detectability helpers
-(D-020--D-023). Gate 0 approved. Episode assembly/integration, window
-labelling, and dataset generation are not authorized;
-`configs/attack_v3_stage1.yaml` remains `status: proposed_unapproved`, so
-`require_approved` refuses generation until the provisional tier/shift/quota
-values are approved.
+gradual deviation, delayed replay, freeze, detectability helpers, in-memory
+episode assembly, and v2-anchored window labelling (D-020--D-024). Gate 0
+approved. Dataset assembly/selection, the writer, and dataset generation are
+not authorized; `configs/attack_v3_stage1.yaml` remains
+`status: proposed_unapproved`, so `require_approved` refuses generation until
+the provisional tier/shift/quota values are approved.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -71,7 +71,7 @@ values are approved.
   `keys` (natural key uniqueness and `source_row_id`), `fingerprint`
   (Parquet-metadata-independent content and schema hashes), `seeding` (SHA-256
   segment streams; `spawn_key` episode streams), `splits` (fixed aircraft split
-  with disjointness/coverage checks), `schemas` (five output tables), `manifest`
+  with disjointness/coverage checks), `schemas` (six output tables), `manifest`
   (config hash, git commit, git dirty flag, library versions, input
   fingerprints, seed).
 - `kinematics` (vectorized speed bands, antimeridian-safe pair residual),
@@ -93,16 +93,23 @@ values are approved.
   provides anchor blending plus `anchor_from_offsets` (strictly before start,
   30 s default age); `detectability` provides `residual_series` and
   `injected_displacement_m` for reporting strata.
-- Synthetic fixtures only: 204 tests pass. No attack episode, dataset writer,
-  window labelling, assembler, or training exists. Gradual episodes are
-  documented as needing >= 5 effective rows; the assembler (Session 3c) will
-  reject shorter ones with `"insufficient_effective_rows"` and missing freeze
-  anchors with `"no_freeze_anchor"`.
-- `scripts/check_foundation_on_real_data.py` and
-  `scripts/check_eligibility_on_real_data.py` are written but NOT yet run. The
-  latter now includes a read-only attribution block for the reported train
-  stride-10 gaps (offset-mod-10 vs enumerated vs global-index stride,
-  cross-segment-boundary windows, and row-mask variants).
+- D-024 adds `episode` (`EpisodeSpec`, `EpisodeResult`, `build_episode` for all
+  seven families with effective-row, freeze-anchor, replay-delay, and
+  `no_measurable_change` rejections) and `windows` (`label_windows` with the
+  v2 30/stride-10 anchoring, `normal`/`attacked`/`ambiguous` labels, and
+  `none`/`boundary`/`interior_only` strata). The sixth schema table is
+  `windows`. `build_episode` is pure and in-memory; its defensive
+  `"no_replay_source"` rejection logs a warning because placement should have
+  already excluded such candidates.
+- Synthetic fixtures only: 236 tests pass. No attack episode is persisted, and
+  no dataset writer, selection logic, assembler, CLI, or training exists.
+  Gradual episodes need >= 5 effective rows; shorter candidates and missing
+  freeze anchors are now rejected in `build_episode`.
+- `scripts/check_foundation_on_real_data.py`,
+  `scripts/check_eligibility_on_real_data.py`, and
+  `scripts/check_windows_on_real_data.py` are written but NOT yet run. The
+  windows check reports 120/600/900 s window yields per episode and compares
+  them with the earlier calibration means without tuning.
 - `REQUIRED_FIELDS`, the span factors (0.8/1.25), and the D-022 tier
   magnitudes/sigmas/kappa/altitude shifts are provisional.
 - Replay lookup uses the nearest row overall and rejects it if ineligible; the
@@ -161,14 +168,17 @@ values are approved.
   remain provisional, and the ramp oracle recall must be recomputed with
   `magnitude/4` in Gate 1b. D-023 fixes composition, gradual realized
   multipliers, replay/freeze semantics, and detectability conventions; its
-  5-effective-row rule and freeze-anchor rejection are documented but not yet
-  enforced. Real-data validation of both conventions is pending
-  `scripts/check_eligibility_on_real_data.py`.
+  5-effective-row rule and freeze-anchor rejection are enforced by D-024's
+  `build_episode`. D-024 also fixes window labels/strata and adds a provisional
+  no-op guard (100 m horizontal / 30 m altitude over effective rows); the guard
+  thresholds are not approved design. Real-data validation of the eligibility,
+  window-yield, and no-op conventions is pending the three check scripts.
 
 ## Where things are
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`
 - Decisions: `docs/DECISIONS.md`; experiments: `docs/EXPERIMENT_REGISTRY.md`
 - Attack methodology mapping: `docs/attack_generation_methodology.md`
 - Attack foundation: `src/flids/attacks/`, tests in `tests/`, real-data checks in
-  `scripts/check_foundation_on_real_data.py` and
-  `scripts/check_eligibility_on_real_data.py` (neither run yet)
+  `scripts/check_foundation_on_real_data.py`,
+  `scripts/check_eligibility_on_real_data.py`, and
+  `scripts/check_windows_on_real_data.py` (none run yet)
