@@ -13,7 +13,7 @@ from .eligibility import REQUIRED_FIELDS, eligible_starts, pair_valid, replay_so
 from .episode import EpisodeSpec, HORIZONTAL_FAMILIES, REPLAY_FAMILIES, build_episode
 from .keys import add_natural_keys
 from .placement import filter_starts_by_span, place_episodes, rows_for_duration
-from .seeding import episode_rng, parameter_rng, placement_rng, segment_rng
+from .seeding import episode_rng, overlay_selection_rng, parameter_rng, placement_rng
 from .schemas import FEATURE_FIELDS, TABLE_NAMES, empty_table, validate_table
 from .windows import label_windows
 
@@ -37,6 +37,7 @@ class OverlaySpec:
     tau: float = 0.1
     episodes_per_segment: int = 1
     dataset_mode: str = "uniform_per_subairspace"
+    overlay_key: str | None = None
     geoaltitude_glitch_threshold_m: float | None = None
     min_gap_seconds: float = 600.0
 
@@ -44,6 +45,11 @@ class OverlaySpec:
         if not 0 <= self.tau <= 1: raise ValueError("tau must be in [0, 1]")
         if not 1 <= self.episodes_per_segment <= 3: raise ValueError("episodes_per_segment must be in 1..3")
         if self.dataset_mode != "uniform_per_subairspace": raise ValueError("unsupported dataset_mode")
+        if self.overlay_key is None:
+            parts = (self.attack_family, self.tier, self.subtype or "", self.altitude_variant or "")
+            object.__setattr__(self, "overlay_key", "|".join(parts))
+        elif not self.overlay_key:
+            raise ValueError("overlay_key must be a non-empty string")
 
 
 @dataclass(frozen=True)
@@ -121,7 +127,9 @@ def assemble_overlay(df: pd.DataFrame, overlay: OverlaySpec, global_seed: int, s
         if overlay.altitude_variant == "baro_plus_geo" and overlay.geoaltitude_glitch_threshold_m is not None:
             glitch = np.zeros(len(seg), dtype=bool); glitch[1:] = np.abs(np.diff(seg.geoaltitude.to_numpy(float))) > overlay.geoaltitude_glitch_threshold_m; row_ok &= ~glitch
         starts = eligible_starts(seg, n_rows, row_ok, pair_valid(seg)); starts, _ = filter_starts_by_span(starts, times, n_rows, overlay.duration_seconds)
-        eligible = bool(len(starts)); u = float(segment_rng(global_seed, icao24, segment_id).random()); selected = eligible and u < overlay.tau
+        eligible = bool(len(starts))
+        u = float(overlay_selection_rng(global_seed, icao24, segment_id, overlay.overlay_key).random())
+        selected = eligible and u < overlay.tau
         segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(_finite_median(seg.lat), _finite_median(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
         multi=np.zeros(len(seg)); pos=np.full(len(seg), "none", dtype=object); ids=np.full(len(seg), -1, dtype=np.int64); meta={}; modified={}; replay_info={}
         if selected:
@@ -138,7 +146,7 @@ def assemble_overlay(df: pd.DataFrame, overlay: OverlaySpec, global_seed: int, s
                     modified[start + offset] = {field: float(values[offset]) for field, values in result.values.items()}
                     if result.delays is not None and np.isfinite(result.delays[offset]):
                         replay_info[start + offset] = (int(seg.source_row_id.iloc[sources[start + offset]]), float(result.delays[offset]))
-                episodes.append(dict(episode_id=eid,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(seg.source_row_id[start]),end_source_row_id=int(seg.source_row_id[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="uniform_per_subairspace",eta_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation="sha256(global_seed|icao24|segment_id); episode/params spawn_key=(k,)",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
+                episodes.append(dict(episode_id=eid,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(seg.source_row_id[start]),end_source_row_id=int(seg.source_row_id[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 for offset, fields in enumerate(result.changed_fields):
                     if fields: provenance.append(dict(source_row_id=int(seg.source_row_id[start+offset]),episode_id=eid,changed_fields_json=strict_json(fields),orig_values_json=strict_json({f:float(seg[f].iloc[start+offset]) for f in fields}),mod_values_json=strict_json({f:float(result.values[f][offset]) for f in fields}),ramp_multiplier=np.float32(result.multipliers[offset]),validation_status="accepted"))
         for i,row in seg.iterrows():

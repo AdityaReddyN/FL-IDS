@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 3d-3.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4a Stage A.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -19,6 +19,13 @@ approved. The dataset writer, manifest writer, CLI, and dataset generation are
 not authorized; `configs/attack_v3_stage1.yaml` remains
 `status: proposed_unapproved`, so `require_approved` refuses generation until
 the provisional tier/shift/quota values are approved.
+
+Session 4a decisions (D-028): overlay-keyed selection streams are independent;
+merged datasets allow one overlay per segment and resolve conflicts by
+lexicographic overlay-key order; `tau_requested` is the eligible-segment
+Bernoulli probability and is explicitly distinct from paper Eq. 10 eta. Stage A
+approval sheet and read-only validation are complete; YAML remains
+`proposed_unapproved` pending human approval of listed parameter values.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

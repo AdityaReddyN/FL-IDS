@@ -30,6 +30,16 @@ def _placement_entropy(global_seed: int, icao24: str, segment_id: int) -> int:
     return int.from_bytes(hashlib.sha256(key).digest(), "big")
 
 
+def _overlay_selection_entropy(
+    global_seed: int, icao24: str, segment_id: int, overlay_key: str
+) -> int:
+    key = (
+        f"{global_seed}|{icao24}|{int(segment_id)}|selection|{overlay_key}"
+        .encode("utf-8")
+    )
+    return int.from_bytes(hashlib.sha256(key).digest(), "big")
+
+
 def segment_seed_sequence(
     global_seed: int, icao24: str, segment_id: int
 ) -> np.random.SeedSequence:
@@ -41,6 +51,19 @@ def segment_rng(global_seed: int, icao24: str, segment_id: int) -> np.random.Gen
     """Return a fresh generator for one aircraft segment."""
     return np.random.default_rng(
         segment_seed_sequence(global_seed, icao24, segment_id)
+    )
+
+
+def overlay_selection_rng(
+    global_seed: int, icao24: str, segment_id: int, overlay_key: str
+) -> np.random.Generator:
+    """Return the Bernoulli selection stream for one named overlay."""
+    if not isinstance(overlay_key, str) or not overlay_key:
+        raise ValueError("overlay_key must be a non-empty string")
+    return np.random.default_rng(
+        np.random.SeedSequence(
+            _overlay_selection_entropy(global_seed, icao24, segment_id, overlay_key)
+        )
     )
 
 

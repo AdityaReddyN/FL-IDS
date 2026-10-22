@@ -7,6 +7,7 @@ from flids.attacks.seeding import (
     parameter_rng,
     parameter_seed_sequence,
     placement_rng,
+    overlay_selection_rng,
     segment_rng,
     segment_seed_sequence,
 )
@@ -92,6 +93,14 @@ def test_named_streams_have_fixed_distinct_first_draws() -> None:
         draws(parameter_rng(42, "abc123", 7, 3)),
         draws(parameter_rng(42, "abc123", 7, 4)),
     )
+
+
+def test_overlay_selection_streams_are_independent_and_deterministic() -> None:
+    constant = overlay_selection_rng(42, "abc123", 7, "constant_deviation|moderate")
+    gaussian = overlay_selection_rng(42, "abc123", 7, "random_gaussian_deviation|moderate")
+    again = overlay_selection_rng(42, "abc123", 7, "constant_deviation|moderate")
+    assert constant.random() != gaussian.random()
+    assert overlay_selection_rng(42, "abc123", 7, "constant_deviation|moderate").random() == again.random()
 
 
 def test_negative_episode_index_raises() -> None:

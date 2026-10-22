@@ -130,3 +130,8 @@ def test_windows_table_is_registered() -> None:
 def test_segments_table_is_registered() -> None:
     assert "segments" in TABLE_NAMES
     validate_table(one_valid_row("segments"), "segments")
+
+
+def test_episodes_schema_uses_tau_requested_name() -> None:
+    assert "tau_requested" in TABLES["episodes"]
+    assert "eta_requested" not in TABLES["episodes"]

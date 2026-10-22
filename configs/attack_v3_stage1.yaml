@@ -115,14 +115,20 @@ tiers:
 
 prevalence:
   tau_sweep: [0.005, 0.01, 0.05, 0.10]
-  eta_definition: fraction_of_eligible_aircraft_segments_targeted
-  primary_uniform_per_subairspace: {eta_requested: tau, report_requested_and_realized_segment_eta: true}
+  tau_definition: Bernoulli_probability_per_eligible_aircraft_segment
+  paper_eq10_eta: not_implemented_tau_is_not_density_and_strength_eta
+  primary_uniform_per_subairspace: {tau_requested: tau, report_requested_and_realized_segment_tau: true}
   density_scaled_sensitivity:
     theta: 0.5
     formula: min_eta_cap_of_tau_times_log_1_plus_theta_times_clipped_rho_reference_over_rho
     multiplier_min: 0.25
     multiplier_max: 4.0
     eta_cap: 0.20
+  overlay_merge:
+    max_overlays_per_segment: 1
+    conflict_priority: lexicographic_overlay_key
+    conflict_rejection_reason: overlay_conflict
+    record_resolved_order_in_manifest: true
   report_requested_and_realized_row_prevalence_by_tau_and_region: true
 
 quota_mode:

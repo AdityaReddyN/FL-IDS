@@ -6,9 +6,14 @@ files and deliberately uses explicit Python overlays rather than YAML.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 import tracemalloc
 from pathlib import Path
+
+SRC = Path(__file__).resolve().parents[1] / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 import pandas as pd
 
@@ -41,16 +46,16 @@ def main() -> None:
     keys = train[["icao24", "segment_id"]].drop_duplicates().sample(n=min(300, train.groupby(["icao24", "segment_id"]).ngroups), random_state=args.seed)
     sample = train.merge(keys, on=["icao24", "segment_id"], how="inner")
     total_segments = source.groupby(["icao24", "segment_id"]).ngroups
-    for offset, overlay in enumerate(overlays()):
+    for overlay in overlays():
         tracemalloc.start(); started = time.perf_counter()
-        tables = assemble_overlay(sample, overlay, args.seed + offset, split_map.split_of)
+        tables = assemble_overlay(sample, overlay, args.seed, split_map.split_of)
         elapsed = time.perf_counter() - started; _, peak = tracemalloc.get_traced_memory(); tracemalloc.stop()
         rejected = tables.rejected_candidates.groupby("reason").size().to_dict()
         windows = tables.windows.groupby("label").size().to_dict()
         strata = tables.windows.groupby("stratum").size().to_dict()
         effective = int(tables.attacked_rows.is_attack_row.sum())
         eligible = tables.segments.eligible.sum(); selected = tables.segments.selected.sum()
-        print(overlay.attack_family, {"accepted": len(tables.episodes), "rejected_by_reason": rejected, "realized_eta": selected / eligible if eligible else 0., "effective_rows": effective, "windows": {**windows, **strata}, "peak_python_mb": peak / 1e6, "seconds_per_100_segments": elapsed * 100 / len(keys), "extrapolated_seconds_all_21389": elapsed * total_segments / len(keys)})
+        print(overlay.attack_family, {"overlay_key": overlay.overlay_key, "accepted": len(tables.episodes), "rejected_by_reason": rejected, "selection_fraction": selected / eligible if eligible else 0., "tau_requested": overlay.tau, "effective_rows": effective, "windows": {**windows, **strata}, "peak_python_mb": peak / 1e6, "seconds_per_100_segments": elapsed * 100 / len(keys), "extrapolated_seconds_all_21389": elapsed * total_segments / len(keys)})
 
 
 if __name__ == "__main__":

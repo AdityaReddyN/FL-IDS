@@ -178,6 +178,18 @@ def test_all_missing_position_segment_has_unknown_cell_without_warning() -> None
     assert segment.cell_id.iloc[0] == "unknown"
 
 
+def test_same_seed_uses_independent_selection_for_overlay_keys() -> None:
+    source = frame()
+    constant = assemble_overlay(source, overlay(tau=.5), 42, split_of)
+    gaussian = assemble_overlay(
+        source,
+        overlay(attack_family="random_gaussian_deviation", subtype="gaussian", magnitude_m=None, sigma_m=500.0, tau=.5),
+        42,
+        split_of,
+    )
+    assert not constant.segments.selection_u.equals(gaussian.segments.selection_u)
+
+
 def test_missing_contact_lag_is_preserved_with_its_missing_flag() -> None:
     tables = assemble_overlay(frame(), overlay(), 7, split_of)
     row = tables.attacked_rows[(tables.attacked_rows.icao24 == "a00001") & (tables.attacked_rows.segment_id == 1) & (tables.attacked_rows.time == 0)].iloc[0]

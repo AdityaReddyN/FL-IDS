@@ -111,7 +111,7 @@ EPISODES_SCHEMA: dict[str, ColumnSpec] = {
     "replay_delay_seconds_effective": ColumnSpec("float64", nullable=True),
     "freeze_anchor_source_row_id": ColumnSpec("int64", nullable=True),
     "selection_method": ColumnSpec("str"),
-    "eta_requested": ColumnSpec("float64"),
+    "tau_requested": ColumnSpec("float64"),
     "dataset_mode": ColumnSpec("str"),
     "seed_derivation": ColumnSpec("str"),
     "parameters_json": ColumnSpec("str"),
