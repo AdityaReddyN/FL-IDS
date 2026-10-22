@@ -380,3 +380,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None.
 **Next steps:** Keep the partial directory untouched. If continuing generation, commit this status update first and write seed 42 into a distinct new run directory; consider a measured performance optimization before another multi-hour attempt. After a complete run, validate artifacts and stop at Gate 1.
 **Questions for human:** None; seed-42 generation remains authorized, but Gate 1 approval is still required before Phase 2.
+
+### 2026-10-22 — Session 4i — Codex — Multi-overlay merge throughput optimization
+**Goal:** Diagnose the slow seed-42 run and reduce avoidable merge work before retrying.
+**Done:** The second seed-42 attempt ran for about 52 minutes, remained CPU-active, and was manually stopped. Its output directory has eight partial Parquet files without valid footers or manifest/config/report. Reworked `_merge_overlay_chunk` to precompute per-segment row-index maps once and slice tables by those indexes rather than repeatedly filtering every full chunk table for each segment. Preserved both partial output directories untouched. Updated project state and handoff notes.
+**Ran / verified:** Focused assembler/writer tests: 19 passed in 9.31s. Full suite: 273 passed in 10.25s. The interrupted Parquet files were not accepted as valid datasets: a read-only footer check failed with missing Parquet magic/footer.
+**NOT verified:** Throughput on the full real table after optimization, Stage C completion, table validators/hashes, plausibility report, plots, or Gate 1. No later phase was started.
+**Results:** No valid experiment or dataset result; no E-### entry.
+**Problems / surprises:** Large real-data runs have no progress output and PyArrow files remain incomplete until writer closure. CPU activity alone did not identify completed chunk counts; the interrupted files lacked valid footers and cannot be used or resumed.
+**Decisions made:** None; D-031 semantics unchanged.
+**Next steps:** Commit this optimization and documentation; confirm a clean tree; retry seed 42 only under a new run ID. If it again fails to make acceptable progress, do not continue blind—instrument/report chunk progress and optimize further before another generation attempt. Stop at Gate 1 after successful output.
+**Questions for human:** None before the authorized seed-42 retry; Gate 1 remains required before Phase 2.

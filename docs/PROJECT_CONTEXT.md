@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4h Stage C partial attempt.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4i Stage C throughput fix.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -24,12 +24,13 @@ vectorized/whole-segment-chunk multi-overlay assembly, lexicographic conflict
 resolution, a per-overlay selection-evidence table, a guarded Parquet writer,
 manifest/config, descriptive plausibility report, multi-family CLI, and SVG
 plot helper. D-031 corrects nullable episode IDs and records the new eight-table
-output. The initial seed-42 CLI attempt exposed and fixed a config-mapping
-defect before the writer ran. A second attempt was manually stopped after
-partial Parquet row groups appeared without a final manifest/config/report;
-`data/attack_generation_v3/stage1_seed_42/` is incomplete and must not be used.
-The next retry requires a new run directory. Gate 1 remains pending and Phase 2
-and later phases must wait for review.
+output. Two seed-42 attempts were manually stopped after prolonged CPU-bound
+execution; directories `stage1_seed_42/` and `stage1_seed_42_retry1/` contain
+incomplete Parquet files without valid footers or a final manifest/config/report
+and must not be used. The multi-overlay merge now precomputes segment index maps
+instead of repeatedly scanning full chunk frames; synthetic tests pass. Retry
+under a new run directory after commit. Gate 1 remains pending; Phase 2/later
+phases must wait for review.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

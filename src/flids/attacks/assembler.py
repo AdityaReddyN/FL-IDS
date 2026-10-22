@@ -328,13 +328,14 @@ def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
     selection_frames = [by_key[item.overlay_key].overlay_selections for item in overlay_order]
     all_selections = pd.concat(selection_frames, ignore_index=True)
     all_selections = all_selections.sort_values(["icao24", "segment_id", "overlay_key"], kind="mergesort").reset_index(drop=True)
-    segment_keys = all_selections[["icao24", "segment_id"]].drop_duplicates().to_records(index=False)
+    selection_by_segment = {
+        (str(icao24), int(segment_id)): group.reset_index(drop=True)
+        for (icao24, segment_id), group in all_selections.groupby(["icao24", "segment_id"], sort=False)
+    }
 
     chosen_keys: dict[tuple[str, int], str | None] = {}
     representative_keys: dict[tuple[str, int], str] = {}
-    for icao24, segment_id in segment_keys:
-        key = (str(icao24), int(segment_id))
-        group = all_selections[(all_selections.icao24 == key[0]) & (all_selections.segment_id == key[1])]
+    for key, group in selection_by_segment.items():
         selected = group[group.selected]
         winner = str(selected.iloc[0].overlay_key) if not selected.empty else None
         chosen_keys[key] = winner
@@ -345,29 +346,45 @@ def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
             representative_keys[key] = str((eligible.iloc[0] if not eligible.empty else group.iloc[0]).overlay_key)
     all_selections["chosen"] = [chosen_keys[(str(row.icao24), int(row.segment_id))] == row.overlay_key for row in all_selections.itertuples()]
 
+    def indices_by_segment(frame: pd.DataFrame):
+        if frame.empty:
+            return {}
+        return {
+            (str(icao24), int(segment_id)): np.asarray(indices, dtype=np.int64)
+            for (icao24, segment_id), indices in frame.groupby(["icao24", "segment_id"], sort=False).indices.items()
+        }
+
+    segment_indices = {}
+    for overlay_key, tables in by_key.items():
+        group_indices = {
+            name: indices_by_segment(getattr(tables, name))
+            for name in ("attacked_rows", "episodes", "rejected_candidates", "windows", "segments")
+        }
+        attacked_indices = group_indices["attacked_rows"]
+        group_indices["step_labels"] = attacked_indices
+        source_to_segment = {}
+        for key, indices in attacked_indices.items():
+            source_ids = tables.attacked_rows.iloc[indices].source_row_id.to_numpy(np.int64)
+            source_to_segment.update((int(source_id), key) for source_id in source_ids)
+        provenance_groups: dict[tuple[str, int], list[int]] = {}
+        for index, source_id in enumerate(tables.modified_row_provenance.source_row_id.to_numpy(np.int64)):
+            key = source_to_segment.get(int(source_id))
+            if key is not None:
+                provenance_groups.setdefault(key, []).append(index)
+        group_indices["modified_row_provenance"] = {
+            key: np.asarray(indices, dtype=np.int64) for key, indices in provenance_groups.items()
+        }
+        segment_indices[overlay_key] = group_indices
+
     output_parts = {name: [] for name in TABLE_NAMES if name != "overlay_selections"}
     for key, winner_key in chosen_keys.items():
         selected_key = winner_key or representative_keys[key]
         source_tables = by_key[selected_key]
         for name in output_parts:
             frame = getattr(source_tables, name)
-            if name == "step_labels":
-                segment_row_ids = set(source_tables.attacked_rows.loc[
-                    (source_tables.attacked_rows.icao24 == key[0]) &
-                    (source_tables.attacked_rows.segment_id == key[1]), "source_row_id"
-                ])
-                mask = frame.source_row_id.isin(segment_row_ids)
-            elif name in {"attacked_rows", "episodes", "rejected_candidates", "windows"}:
-                mask = (frame.icao24 == key[0]) & (frame.segment_id == key[1])
-            elif name == "modified_row_provenance":
-                row_ids = set(source_tables.attacked_rows.loc[
-                    (source_tables.attacked_rows.icao24 == key[0]) &
-                    (source_tables.attacked_rows.segment_id == key[1]), "source_row_id"
-                ])
-                mask = frame.source_row_id.isin(row_ids)
-            else:
-                mask = (frame.icao24 == key[0]) & (frame.segment_id == key[1])
-            output_parts[name].append(frame.loc[mask])
+            indices = segment_indices[selected_key][name].get(key)
+            if indices is not None:
+                output_parts[name].append(frame.iloc[indices])
 
         # Keep per-request accounting for every selected overlay that lost the
         # deterministic merge conflict. No placement/build attempt is made.
@@ -375,15 +392,14 @@ def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
             for overlay in overlay_order:
                 if overlay.overlay_key == winner_key:
                     continue
-                selection = all_selections[
-                    (all_selections.icao24 == key[0]) &
-                    (all_selections.segment_id == key[1]) &
-                    (all_selections.overlay_key == overlay.overlay_key)
+                selection = selection_by_segment[key].loc[
+                    selection_by_segment[key].overlay_key == overlay.overlay_key
                 ].iloc[0]
                 if not selection.selected:
                     continue
                 base = by_key[overlay.overlay_key].segments
-                segment = base[(base.icao24 == key[0]) & (base.segment_id == key[1])].iloc[0]
+                segment_index = segment_indices[overlay.overlay_key]["segments"][key][0]
+                segment = base.iloc[segment_index]
                 n_rows = rows_for_duration(overlay.duration_seconds)
                 output_parts["rejected_candidates"].append(_table(
                     "rejected_candidates",
@@ -416,10 +432,9 @@ def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
     summaries = []
     for key, winner_key in chosen_keys.items():
         representative = representative_keys[key]
-        row = by_key[representative].segments
-        row = row[(row.icao24 == key[0]) & (row.segment_id == key[1])].iloc[0].to_dict()
-        eligibility_mask = (all_selections.icao24 == key[0]) & (all_selections.segment_id == key[1])
-        row["eligible"] = bool(all_selections.loc[eligibility_mask, "eligible"].any())
+        row_index = segment_indices[representative]["segments"][key][0]
+        row = by_key[representative].segments.iloc[row_index].to_dict()
+        row["eligible"] = bool(selection_by_segment[key].eligible.any())
         row["selected"] = winner_key is not None
         summaries.append(row)
     frames["segments"] = _table("segments", summaries)
