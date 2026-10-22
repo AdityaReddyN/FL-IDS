@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -42,6 +44,7 @@ def write_overlay_tables(
     output_dir: str | Path,
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
+    progress_callback: Callable[[Mapping], None] | None = None,
 ) -> dict:
     """Write all eight tables in chunks, refusing unapproved/dirty/overwrite.
 
@@ -83,8 +86,28 @@ def write_overlay_tables(
     validator_results = {name: "passed" for name in TABLE_NAMES}
     plausibility_episodes = []
     unavailable_checks = []
+    started_at = time.perf_counter()
+    segments_processed = 0
+    total_segments = int(df.groupby(["icao24", "segment_id"], sort=False, dropna=False).ngroups)
+    total_chunks = max(1, math.ceil(total_segments / max_segments_per_chunk))
     try:
-        for chunk in iter_assembled_multi_chunks(df, overlays, global_seed, split_of, max_segments_per_chunk=max_segments_per_chunk):
+        chunks = iter(iter_assembled_multi_chunks(
+            df, overlays, global_seed, split_of,
+            max_segments_per_chunk=max_segments_per_chunk,
+        ))
+        for chunk_index in range(1, total_chunks + 1):
+            if progress_callback is not None:
+                progress_callback({
+                    "event": "chunk_start",
+                    "chunk_index": chunk_index,
+                    "total_chunks": total_chunks,
+                    "segments_processed": segments_processed,
+                    "total_segments": total_segments,
+                    "elapsed_seconds": time.perf_counter() - started_at,
+                    "rows_written": dict(row_counts),
+                })
+            chunk_started_at = time.perf_counter()
+            chunk = next(chunks)
             for name in TABLE_NAMES:
                 frame = getattr(chunk, name)
                 table = pa.Table.from_pandas(frame, preserve_index=False)
@@ -128,6 +151,18 @@ def write_overlay_tables(
             if not chunk.rejected_candidates.empty:
                 for reason, count in chunk.rejected_candidates.reason.value_counts().items():
                     merged["rejected_by_reason"][str(reason)] = merged["rejected_by_reason"].get(str(reason), 0) + int(count)
+            segments_processed += len(chunk.segments)
+            if progress_callback is not None:
+                progress_callback({
+                    "event": "chunk_complete",
+                    "chunk_index": chunk_index,
+                    "total_chunks": total_chunks,
+                    "segments_processed": segments_processed,
+                    "total_segments": total_segments,
+                    "chunk_seconds": time.perf_counter() - chunk_started_at,
+                    "elapsed_seconds": time.perf_counter() - started_at,
+                    "rows_written": dict(row_counts),
+                })
     finally:
         for parquet_writer in writers.values():
             parquet_writer.close()

@@ -30,9 +30,11 @@ incomplete Parquet files and must not be used. The multi-overlay merge now
 precomputes segment index maps instead of repeatedly scanning full chunk frames;
 synthetic tests pass. A fourth attempt (`stage1_seed_42_retry3/`) ran for about
 one hour and produced partial files (about 28.6 MB attacked_rows) but no `PAR1`
-footers or final manifest/config/report; it was stopped. Full-run throughput
-remains unverified and needs profiling before another full-data run. Gate 1
-remains pending; Phase 2/later phases must wait for review.
+footers or final manifest/config/report; it was stopped. Writer/CLI now emit
+chunk-start and chunk-complete timings, segment counts, and cumulative row
+counts to stderr. The full-data runtime is still unverified; a fresh seed-42
+retry may use these diagnostics. Gate 1 remains pending; Phase 2/later phases
+must wait for review.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

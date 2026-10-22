@@ -413,3 +413,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None. D-031 semantics unchanged.
 **Next steps:** Profile a representative chunk and add chunk-level timing/progress before another full-data attempt. Preserve all partial run directories. After a complete seed-42 run, inspect artifacts and stop for Gate 1 review; do not begin Phase 2 until approval.
 **Questions for human:** None; Stage C seed-42 generation remains authorized. Gate 1 approval remains required before Phase 2.
+
+### 2026-10-22 — Session 4l — Codex — Chunk progress instrumentation
+**Goal:** Make Stage C chunk runtime observable before another full-data attempt.
+**Done:** Added optional writer progress callbacks for chunk start/completion, elapsed and per-chunk seconds, cumulative/total segment counts, and cumulative row counts. The CLI streams these JSON events to stderr. The writer test verifies ordered progress and that expected row totals are unchanged.
+**Ran / verified:** The new focused test first failed because `progress_callback` did not exist. After implementation, writer tests passed (6 passed). Full suite: 274 passed in 41.30s. CLI `--help`, `py_compile` for changed Python files, and `git diff --check` passed.
+**NOT verified:** Full-data runtime, dataset generation, Parquet footer/manifest validation, plausibility report/plots, or Gate 1. No real-data check script or training was run.
+**Results:** Synthetic test only; no experiment or E-### entry. No generated files created by this change.
+**Problems / surprises:** The previous attempt did process data, but without progress events its slow operation and chunk number were unclear.
+**Decisions made:** None; diagnostics do not change output contents or attack semantics.
+**Next steps:** Commit the instrumentation and docs; then retry seed 42 into a new output directory using the explicit chunk progress. Use observed chunk timings to decide whether further profiling/optimization is needed. Validate complete outputs and stop for Gate 1; do not start Phase 2 until approval.
+**Questions for human:** None before authorized seed-42 retry; Gate 1 approval remains required before Phase 2.

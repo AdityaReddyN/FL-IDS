@@ -43,6 +43,10 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_progress(event: dict) -> None:
+    print(json.dumps(event, sort_keys=True), file=sys.stderr, flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config_path = args.config.resolve()
@@ -95,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=resolved_out,
         max_segments_per_chunk=args.segments_per_chunk,
         repo_root=ROOT,
+        progress_callback=_print_progress,
     )
     print(json.dumps({"output": str(resolved_out), "manifest": manifest}, indent=2, sort_keys=True))
     return 0

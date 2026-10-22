@@ -98,3 +98,24 @@ def test_writer_records_multi_overlay_merge_order_and_selection(tmp_path, monkey
     assert set(manifest["overlays"]) == {constant.overlay_key, gaussian.overlay_key}
     assert manifest["tables"]["overlay_selections"]["row_count"] == 6
     assert manifest["merged_totals"]["rejected_by_reason"]["overlay_conflict"] > 0
+
+
+def test_writer_reports_chunk_progress_without_changing_output(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("status: approved\\n", encoding="utf-8")
+    monkeypatch.setattr(writer, "git_dirty", lambda _root: False)
+    updates = []
+    manifest = writer.write_overlay_tables(
+        source_frame(), overlay(), 17, split_of, {"status": "approved"},
+        config_path=config_path, output_dir=tmp_path / "progress-run",
+        max_segments_per_chunk=1, progress_callback=updates.append,
+    )
+    starts = [item for item in updates if item["event"] == "chunk_start"]
+    completes = [item for item in updates if item["event"] == "chunk_complete"]
+    assert [item["chunk_index"] for item in starts] == [1, 2, 3]
+    assert [item["chunk_index"] for item in completes] == [1, 2, 3]
+    assert [item["segments_processed"] for item in completes] == [1, 2, 3]
+    assert all(item["elapsed_seconds"] >= 0 for item in updates)
+    assert all(item["chunk_seconds"] >= 0 for item in completes)
+    assert all(item["rows_written"]["attacked_rows"] == 100 * i for i, item in enumerate(completes, 1))
+    assert manifest["tables"]["attacked_rows"]["row_count"] == 300
