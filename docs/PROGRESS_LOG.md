@@ -391,3 +391,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None; D-031 semantics unchanged.
 **Next steps:** Commit this optimization and documentation; confirm a clean tree; retry seed 42 only under a new run ID. If it again fails to make acceptable progress, do not continue blind—instrument/report chunk progress and optimize further before another generation attempt. Stop at Gate 1 after successful output.
 **Questions for human:** None before the authorized seed-42 retry; Gate 1 remains required before Phase 2.
+
+### 2026-10-22 — Session 4j — Codex — Stage C retry progress check
+**Goal:** Continue the explicitly authorized seed-42 generation after the multi-overlay merge optimization.
+**Done:** Started the writer in the new directory `data/attack_generation_v3/stage1_seed_42_retry2/` from clean commit `4969cba`. After about 33 minutes, stopped it before completion. Corrected the earlier observation that output had not advanced: the Parquet files had grown to about 50 MB. Read-only tail checks found no `PAR1` footer on any table, and there is no manifest/config/report, so this is not a usable dataset. Updated the snapshot and roadmap.
+**Ran / verified:** Process was CPU-active. All eight expected Parquet paths existed and had grown; final sizes were 49,533,475 bytes attacked_rows, 3,327,779 step_labels, 997,302 overlay_selections, 416,443 episodes, 393,860 windows, 302,231 segments, 148,031 modified_row_provenance, and 60,287 rejected_candidates. Their final four bytes were not `PAR1`. No tests or real-data check script was run in this session.
+**NOT verified:** Completed seed-42 dataset, readable Parquet metadata/row counts, manifest hashes, validators, plausibility report, plots, generation runtime, or Gate 1. No Phase 2 or training work was started.
+**Results:** No valid dataset/experiment result; no E-### entry. The incomplete `stage1_seed_42_retry2/` directory is preserved and must not be consumed or overwritten.
+**Problems / surprises:** A previous file listing rendered sizes blank; the files had in fact grown substantially. The stopped files still lack Parquet footer magic. A full-run throughput estimate is not established from this partial attempt.
+**Decisions made:** None. D-031 semantics unchanged.
+**Next steps:** Commit this status update; if continuing, run seed 42 into a new directory and allow the writer to complete. Validate the complete tables, manifest, report, and plots, then stop for human Gate 1 review. Do not start Phase 2 until Gate 1 is approved.
+**Questions for human:** None; seed-42 generation is authorized. Gate 1 approval remains required before Phase 2.
