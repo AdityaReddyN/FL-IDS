@@ -1,6 +1,6 @@
 # Attack V3 Design — Decoupled Truth, Detectability Strata, and Long-Episode Feasibility (Draft 4)
 
-**Status:** review only. Proposed per D-019 (superseding effect-gate and window-rule portions of D-011, D-014, and D-018). No attack-generation code is authorized until this document and `configs/attack_v3_stage1.yaml` are approved.
+**Status:** Approved design basis per D-020 and D-029. D-019 supersedes the effect-gate and window-rule portions of D-011, D-014, and D-018. Dataset generation remains gated on Stage B review and explicit human authorization; this approval does not pass Gate 1.
 
 ---
 

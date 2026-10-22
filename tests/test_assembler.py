@@ -1,11 +1,12 @@
 """Synthetic contract tests for the pure v3 overlay assembler."""
 
 import json
+import hashlib
 
 import numpy as np
 import pandas as pd
 
-from flids.attacks.assembler import OverlaySpec, assemble_overlay, strict_json
+from flids.attacks.assembler import OverlaySpec, assemble_overlay, iter_assembled_chunks, strict_json
 from flids.attacks.schemas import TABLE_NAMES, validate_table
 from flids.attacks.windows import label_windows
 
@@ -64,6 +65,58 @@ def overlay(**overrides) -> OverlaySpec:
 def assert_tables_valid(result) -> None:
     for name in TABLE_NAMES:
         validate_table(getattr(result, name), name)
+
+
+def _bit_digest(table: pd.DataFrame) -> str:
+    """Hash ordered values, dtypes, exact float encodings, and null positions."""
+    digest = hashlib.sha256()
+    for column in table.columns:
+        series = table[column]
+        dtype = str(series.dtype)
+        digest.update(column.encode("utf-8") + b"\0" + dtype.encode("ascii") + b"\0")
+        if pd.api.types.is_float_dtype(series.dtype):
+            float_dtype = np.dtype("float32" if dtype in {"float32", "Float32"} else "float64")
+            for value in series.tolist():
+                if pd.isna(value):
+                    digest.update(b"N")
+                else:
+                    digest.update(b"F" + np.asarray(value, dtype=float_dtype).tobytes())
+        else:
+            for value in series.tolist():
+                if pd.isna(value):
+                    digest.update(b"N")
+                elif isinstance(value, (bool, np.bool_)):
+                    digest.update(b"B1" if value else b"B0")
+                elif isinstance(value, (int, np.integer)):
+                    digest.update(b"I" + str(int(value)).encode("ascii") + b";")
+                else:
+                    encoded = str(value).encode("utf-8")
+                    digest.update(b"S" + len(encoded).to_bytes(8, "big") + encoded)
+    return digest.hexdigest()
+
+
+def test_synthetic_assembler_matches_pre_refactor_bit_golden() -> None:
+    tables = assemble_overlay(frame(), overlay(), 7, split_of)
+    actual = {name: _bit_digest(getattr(tables, name)) for name in TABLE_NAMES}
+    expected = {
+        "attacked_rows": "4ed0feb244e3ff25bc892fb64b9463c60672d9f15c2ebc02a261d995e0ff1be7",
+        "step_labels": "e8218bc941b45e3df3e4e51097a079f585c576b0348a44cced865e825098ef54",
+        "episodes": "bd2f66b6987843d6106e303f7d572355995eedec443dd2d0a8d0c50ee3a12527",
+        "rejected_candidates": "0ff6f757c74222392c0d6b3be92792c5e048aa0744eab87d2472577ed34e8997",
+        "modified_row_provenance": "435d18231dd685cc796422cffc810cc08a626e70addce0870ef8eeebaa77710a",
+        "windows": "22210de2f538a3ebc39fe71c6c9f97813b93c8b4f2a30bd71d2842e600fc0719",
+        "segments": "d95b69b55910cc3ca2eb161d4af0b038be77acf3d0a9088a695cd5bf6caae00a",
+    }
+    assert actual == expected
+
+
+def test_segment_chunks_concatenate_to_the_same_assembled_tables() -> None:
+    source = frame()
+    whole = assemble_overlay(source, overlay(), 7, split_of, max_segments_per_chunk=64)
+    chunks = list(iter_assembled_chunks(source, overlay(), 7, split_of, max_segments_per_chunk=1))
+    for name in TABLE_NAMES:
+        combined = pd.concat([getattr(chunk, name) for chunk in chunks], ignore_index=True)
+        pd.testing.assert_frame_equal(combined, getattr(whole, name))
 
 
 def without_input_order_ids(table: pd.DataFrame) -> pd.DataFrame:

@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4a Stage A.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4d Stage B.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,23 +9,23 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 foundation plus kinematics, eligibility, replay-source lookup, episode
-placement, ramp multipliers, manipulation primitives, displacement composition,
-gradual deviation, delayed replay, freeze, detectability helpers, in-memory
-episode assembly, v2-anchored window labelling, and a pure in-memory overlay
-assembler with review-fixed replay provenance, isolated placement streams, and
-missing-value-safe output tables (D-020--D-027). Gate 0
-approved. The dataset writer, manifest writer, CLI, and dataset generation are
-not authorized; `configs/attack_v3_stage1.yaml` remains
-`status: proposed_unapproved`, so `require_approved` refuses generation until
-the provisional tier/shift/quota values are approved.
+Phase 1 Stage B is in progress. The attack foundation, seven-family in-memory
+assembler, schemas, and tests are implemented (D-020--D-028); Gate 0 is
+approved. Stage 1 parameter values were explicitly approved by the human in
+Session 4d (D-029); `configs/attack_v3_stage1.yaml` now has `status: approved`.
 
 Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
 lexicographic overlay-key order; `tau_requested` is the eligible-segment
 Bernoulli probability and is explicitly distinct from paper Eq. 10 eta. Stage A
-approval sheet and read-only validation are complete; YAML remains
-`proposed_unapproved` pending human approval of listed parameter values.
+approval sheet and read-only validation are complete. Stage B is in progress:
+vectorized/whole-segment-chunk assembly, a guarded single-overlay Parquet writer,
+manifest, descriptive plausibility report, single-overlay CLI, and SVG plot
+helper are implemented and covered by synthetic tests. No dataset has been
+written. The golden regression exposed lossy float64 coercion of some nullable
+row/step episode IDs in legacy output. Multi-overlay conflict handling and the
+merged `segments` selection representation remain unresolved (D-030); do not
+run Stage C until those choices and Stage B review are complete.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -192,4 +192,5 @@ approval sheet and read-only validation are complete; YAML remains
 - Attack foundation: `src/flids/attacks/`, tests in `tests/`, real-data checks in
   `scripts/check_foundation_on_real_data.py`,
   `scripts/check_eligibility_on_real_data.py`, and
-  `scripts/check_windows_on_real_data.py` (none run yet)
+  `scripts/check_windows_on_real_data.py` (not run); the assembler real-data
+  diagnostic was run once in Session 4a as pipeline validation only.

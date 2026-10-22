@@ -1,7 +1,7 @@
 """Load and validate the Stage 1 attack configuration.
 
-The real YAML stays ``status: proposed_unapproved`` until the human approves it.
-:func:`require_approved` is the hard gate for any dataset-generation entry point.
+Dataset-generation entry points must call :func:`require_approved`; the checked
+in config status records the latest human decision, not an agent decision.
 """
 
 from __future__ import annotations

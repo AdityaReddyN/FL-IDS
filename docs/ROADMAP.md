@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A parameter review and real-data pipeline validation complete; human approval pending; no dataset writer or generation started (D-020--D-028)**
+**Current phase: 1 — Stage A parameter values approved (D-029); Stage B single-overlay infrastructure implemented; multi-overlay representation/review remains open (D-030); no dataset generated**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -65,21 +65,22 @@ through with `~~` and explain in PROGRESS_LOG).
   nullable contact lag, warning-free finite cell median, and NaN fixtures (D-027)
 - [x] Stage A: read-only provisional-parameter approval sheet; real-data assembler
   diagnostic run; overlay-keyed selection and tau semantics recorded (D-028)
-- [ ] **Stage A human gate: approve parameter values and set YAML status to approved**
+- [x] **Stage A human gate: approve parameter values and set YAML status to approved (D-029)**
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
-- [ ] Constant deviation
-- [ ] Random Gaussian deviation
-- [ ] Increased/gradual deviation
+- [x] Constant deviation
+- [x] Random Gaussian deviation
+- [x] Increased/gradual deviation
 - [ ] (optional) non-linear, zoom, changeable deviation
-- [ ] Delayed replay (300 s, same-aircraft lookback)
-- [ ] Amplitude calibration from historical statistics + stealth tiers
-- [ ] Attack proportion parameter + sweep support
-- [ ] Per-row provenance (original/modified values, episode id, params, source row)
-- [ ] Rejected-candidate log
-- [ ] Physical plausibility validator + report
-- [ ] `manifest.json`
-- [ ] Unit tests (determinism, no leakage across aircraft, delay correctness, no edits outside intervals)
-- [ ] Visual sanity plots (example trajectories before/after)
+- [x] Delayed replay (300 s, same-aircraft lookback)
+- [x] Amplitude values calibrated from historical statistics + stealth tiers
+- [x] Attack proportion parameter + sweep support (`tau` over eligible segments)
+- [x] Per-row provenance (original/modified values, episode id, params, source row)
+- [x] Rejected-candidate log
+- [x] Physical plausibility metrics/report (descriptive; no pass/fail cutoffs approved)
+- [x] Single-overlay Parquet writer, manifest, and CLI with overwrite/dirty/config guards
+- [x] Unit tests (determinism, no leakage across aircraft, delay correctness, no edits outside intervals)
+- [x] Visual sanity plot script (example trajectories before/after)
+- [ ] Multi-overlay conflict resolution and merged `segments` selection representation (D-030; human direction required)
 - [ ] **GATE 1: human reviews manifest, report, plots**
 
 ## Phase 2 — Sequence dataset v3 + shortcut audit

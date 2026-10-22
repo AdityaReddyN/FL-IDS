@@ -1,6 +1,6 @@
-# REVIEW DRAFT ONLY — no attack code may consume this until human approval.
+# Human-approved parameter set; numeric values approved as listed in the Stage A sheet.
 version: attack_v3_stage1_draft_4
-status: proposed_unapproved
+status: approved
 global_seed: 42
 injection_realization_global_seeds: [42, 43, 44, 45, 46]
 

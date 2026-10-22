@@ -50,17 +50,21 @@ training data only, and never tune on test data.
 - Session 4a Stage A is complete: approval-sheet generation and a read-only
   real-data assembler diagnostic were run. This was pipeline validation, not a
   scientific result, and no parameters were tuned.
-- The human approval gate for parameter values is **still pending**. The live
-  config is `status: proposed_unapproved`. Stage B must not start until the
-  human approves values and changes the YAML status to `approved`.
-- No Stage B writer/manifest writer/CLI/plausibility report/plots have been
-  implemented. No generated v3 dataset exists. No Phase 1 dataset generation
-  or training has run.
+- The human approved Draft 4 parameter values in Session 4d (D-029), and the
+  live config is now `status: approved`.
+- Stage B is partially implemented: vectorized and chunked assembler output,
+  a single-overlay guarded Parquet writer and manifest, descriptive
+  plausibility report, single-overlay CLI/dry-run, and SVG sanity-plot helper.
+  No generated v3 dataset exists. No Phase 1 generation or training has run.
+- Stage B is not complete: multi-overlay conflict resolution and the merged
+  `segments` selection schema need a human decision. The golden test also
+  exposed legacy float64 rounding of some nullable row/step episode IDs above
+  2^53; compatibility was preserved for now (D-030).
 - Gate 1 (review of manifest, plausibility report, and plots) is not passed.
   Phase 2 and all later phases remain unstarted; do not mark Gate 2 or Gate 3.
-- A previous user request to continue the next stages did not satisfy the
-  config gate: the config remained unapproved. Stage C also requires a clean
-  committed tree and an explicit human “go” after Stage B review.
+- Stage C requires a clean committed tree and an explicit human “go” after
+  Stage B review. The unrelated `.claude/` directory was untracked at the last
+  status check and must not be modified without direction.
 
 ## Data and prior baseline
 
@@ -155,36 +159,31 @@ From the latest Stage A progress entry:
 
 ## Exact gates and permitted next steps
 
-### Stage A human approval — not complete
+### Stage A human approval — complete (D-029)
 
-Human reviews `scripts/make_approval_sheet.py` output and approves actual
-parameter values (or explicitly approves the config values), then changes
-`configs/attack_v3_stage1.yaml` status to `approved`. Until then, do not proceed
-to Stage B. `require_approved` is intended to reject the current config.
+The human approved the Draft 4 values listed by `scripts/make_approval_sheet.py`;
+`configs/attack_v3_stage1.yaml` is now `approved`. Do not change the approved
+values without a new human decision.
 
-### Stage B — after config approval
+### Stage B — current implementation status
 
-Only implement the user's requested Stage B scope: bit-identical synthetic
-regression test first; vectorize row/step/provenance construction and chunk
-segments; add a Parquet writer refusing overwrite, dirty-tree state, or
-unapproved config; manifest with fingerprints, versions, counts, hashes and
-merge order; physical-plausibility validator/report, marking unavailable
-checks; sanity plots; and tests for determinism, leakage, replay, split and
-refusals. Commit each stage with `phase1: stage N ...`; update decisions,
-roadmap, project context, and progress log as required. Do not run real-data
-scripts unless asked; Stage A's specific real-data diagnostic has already run.
+The current work adds the single-overlay pieces above. The multi-overlay
+selection/conflict merge is still unresolved because the specified `segments`
+schema has one selection draw while each overlay has a distinct stream and
+eligibility mask. D-030 records the issue. Keep the legacy golden output until
+the human decides whether its episode-ID rounding bug may be corrected.
 
 ### Stage C — human gate after Stage B review
 
 Generation to `data/attack_generation_v3/<run_id>/` is permitted only after the
-human reviews Stage B and explicitly says “go”, from a clean committed tree.
+human reviews completed Stage B, resolves D-030, and explicitly says “go”, from a clean committed tree.
 Generate seed 42 first. Do not generate later seeds until review. Never write to
 immutable paths, never commit data, and do not push or merge.
 
 ## Remaining project roadmap
 
-- **Phase 1:** complete Stage A parameter approval, then Stage B infrastructure,
-  then Stage C generation and Gate 1 review.
+- **Phase 1:** Stage A values approved; finish Stage B's merge/ID decisions,
+  obtain Stage B review and explicit Stage C go, then generate and pass Gate 1.
 - **Phase 2:** build v3 sequence windows, split by aircraft before windowing,
   train-only preprocessing, realistic and balanced sets, leakage/shortcut
   audits, then Gate 2.
