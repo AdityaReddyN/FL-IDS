@@ -285,3 +285,13 @@ only then implement Stage 1 attack-generation code.
 1. Selection `u` currently depends only on `(global_seed, icao24, segment_id)`, so same-seed overlays at the same tau select identical segments. Recommend an explicit per-overlay key in entropy, recorded in the future manifest: it prevents cross-overlay segment/class confounding and episode-ID collisions when merging overlays, but makes selections non-nested. Alternatives are a manifest-recorded per-overlay seed (similar effect, weaker compositional clarity) or deliberate nested selection (keeps nesting but increases confounding when overlays are merged). Which should be adopted?
 2. Should `eta_requested` remain this implementation's Bernoulli `tau`, or should it represent the paper's Eq. 10 density/strength eta? Recommend retaining `tau` as selection probability and adding separately named paper parameters only after the equation mapping is approved.
 3. For 900-second episodes with a 600-second minimum gap, many requests will reasonably reject as `gap_violation`. Recommend one episode per segment for 900 s (or reduce requests to two only for segments with demonstrably sufficient span); approve a different default only with an explicit capacity study.
+
+### 2026-10-22 — Session 3d-3 — Codex — Missing-value-safe overlay tables
+**Goal:** Fix the real-data assembler schema failure and all-NaN cell-median warnings without running real-data scripts or changing attack logic.
+**Done:** Fixtures now use true NaN feature values and include an all-missing-position segment. Feature originals/modifications are nullable; `contact_lag_seconds` is nullable because `build_dataset.py` derives it from nullable `lastcontact`. Added finite-only cell median returning `unknown`, strict provenance/unchanged-NaN checks, and D-027.
+**Ran / verified:** New missing-data tests first failed: 7 failed and emitted 7 all-NaN median warnings at the reported schema failure. Focused rerun passed 31 tests.
+**NOT verified:** No data files or `check_*_on_real_data.py` script were touched/run. Real-table `onground` null status is unverified; it remains non-nullable. No writer, CLI, dataset, training, or attack/selection/RNG change was made.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** Beyond the reported feature failure, code inspection confirmed `contact_lag_seconds` can be null when `lastcontact` is null, despite the paired missingness flag.
+**Decisions made:** D-027.
+**Next steps:** Re-run the real-data check only when explicitly authorized; if it exposes null `onground`, decide whether to reject or represent it as nullable rather than coercing it silently.

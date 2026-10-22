@@ -58,6 +58,17 @@ def _cell(lat, lon, degrees):
     return f"{int(np.floor((lat + 90.) / degrees))}:{int(np.floor((lon + 180.) / degrees))}"
 
 
+def _finite_median(values) -> float:
+    """Return a finite-only median, or NaN when a coordinate is unavailable.
+
+    Longitude uses the existing arithmetic-median convention; it is not
+    antimeridian-aware and must not be interpreted as a circular median.
+    """
+    array = np.asarray(values, dtype=float)
+    finite = array[np.isfinite(array)]
+    return float(np.median(finite)) if finite.size else float("nan")
+
+
 def _episode_id(icao24, segment_id, index):
     value = int.from_bytes(hashlib.sha256(f"{icao24}|{segment_id}|{index}".encode()).digest()[:8], "big")
     return value & ((1 << 63) - 1)
@@ -111,7 +122,7 @@ def assemble_overlay(df: pd.DataFrame, overlay: OverlaySpec, global_seed: int, s
             glitch = np.zeros(len(seg), dtype=bool); glitch[1:] = np.abs(np.diff(seg.geoaltitude.to_numpy(float))) > overlay.geoaltitude_glitch_threshold_m; row_ok &= ~glitch
         starts = eligible_starts(seg, n_rows, row_ok, pair_valid(seg)); starts, _ = filter_starts_by_span(starts, times, n_rows, overlay.duration_seconds)
         eligible = bool(len(starts)); u = float(segment_rng(global_seed, icao24, segment_id).random()); selected = eligible and u < overlay.tau
-        segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(np.nanmedian(seg.lat), np.nanmedian(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
+        segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(_finite_median(seg.lat), _finite_median(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
         multi=np.zeros(len(seg)); pos=np.full(len(seg), "none", dtype=object); ids=np.full(len(seg), -1, dtype=np.int64); meta={}; modified={}; replay_info={}
         if selected:
             accepted, failures = place_episodes(starts, times, overlay.duration_seconds, overlay.episodes_per_segment, lambda k: placement_rng(global_seed, icao24, segment_id, k), max_per_segment=3, min_gap_seconds=overlay.min_gap_seconds)

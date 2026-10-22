@@ -1,11 +1,17 @@
 """Synthetic contract tests for the pure v3 overlay assembler."""
 
+import json
+
 import numpy as np
 import pandas as pd
 
 from flids.attacks.assembler import OverlaySpec, assemble_overlay, strict_json
 from flids.attacks.schemas import TABLE_NAMES, validate_table
 from flids.attacks.windows import label_windows
+
+def _as_missing_none(series: pd.Series) -> pd.Series:
+    """Compare nullable (<NA>) and float (nan) missing values as equal."""
+    return series.astype(object).where(series.notna(), None)
 
 
 def frame() -> pd.DataFrame:
@@ -27,8 +33,17 @@ def frame() -> pd.DataFrame:
                     row[f"{name}_missing"] = False
                 rows.append(row)
     out = pd.DataFrame(rows)
-    # One ineligible row excludes the long segment's affected candidate spans.
-    out.loc[(out.icao24 == "a00002") & (out.segment_id == 0) & (out.time == 500), "lat_missing"] = True
+    # Missing flags and values mirror the cleaned table; the short test segment
+    # also exercises an all-missing position median.
+    missing = (out.icao24 == "a00002") & (out.segment_id == 0) & (out.time == 500)
+    out.loc[missing, ["lat", "lon"]] = np.nan
+    out.loc[missing, ["lat_missing", "lon_missing"]] = True
+    all_missing = (out.icao24 == "a00003") & (out.segment_id == 1)
+    out.loc[all_missing, ["lat", "lon"]] = np.nan
+    out.loc[all_missing, ["lat_missing", "lon_missing"]] = True
+    lag_missing = (out.icao24 == "a00001") & (out.segment_id == 1) & (out.time == 0)
+    out.loc[lag_missing, "contact_lag_seconds"] = np.nan
+    out.loc[lag_missing, "contact_lag_missing"] = True
     return out
 
 
@@ -80,8 +95,13 @@ def test_tau_selection_metadata_and_unmodified_rows_are_preserved() -> None:
     rows = all_eligible.attacked_rows
     inactive = ~rows.is_attack_row
     for name in ("icao24", "segment_id", "time", "onground", "contact_lag_seconds", "contact_lag_missing"):
-        assert rows.loc[inactive, name].tolist() == source.loc[rows.loc[inactive, "source_row_id"], name].tolist()
-    assert (rows.loc[inactive, "orig_lat"] == rows.loc[inactive, "mod_lat"]).all()
+        pd.testing.assert_series_equal(
+            _as_missing_none(rows.loc[inactive, name].reset_index(drop=True)),
+            _as_missing_none(source.loc[rows.loc[inactive, "source_row_id"], name].reset_index(drop=True)),
+            check_names=False,
+            check_dtype=False,
+        )
+    assert np.array_equal(rows.loc[inactive, "orig_lat"], rows.loc[inactive, "mod_lat"], equal_nan=True)
     seed_a = assemble_overlay(source, overlay(tau=.5), 1, split_of)
     seed_b = assemble_overlay(source, overlay(tau=.5), 2, split_of)
     assert not seed_a.segments.selected.equals(seed_b.segments.selected)
@@ -136,3 +156,30 @@ def test_episode_and_rejection_ids_are_unique_for_three_requests() -> None:
 
 def test_strict_json_converts_non_finite_values_to_null() -> None:
     assert strict_json({"x": np.nan, "y": np.inf}) == '{"x":null,"y":null}'
+
+
+def test_missing_feature_rows_pass_through_and_provenance_stays_finite() -> None:
+    tables = assemble_overlay(frame(), overlay(), 7, split_of)
+    missing = tables.attacked_rows[tables.attacked_rows.orig_lat.isna()]
+    assert not missing.empty
+    assert missing.mod_lat.isna().all()
+    assert not missing.is_attack_row.any()
+    for row in tables.modified_row_provenance.itertuples():
+        original = json.loads(row.orig_values_json)
+        modified = json.loads(row.mod_values_json)
+        assert np.isfinite(np.asarray(list(original.values()), dtype=float)).all()
+        assert np.isfinite(np.asarray(list(modified.values()), dtype=float)).all()
+        assert "NaN" not in row.orig_values_json + row.mod_values_json
+
+
+def test_all_missing_position_segment_has_unknown_cell_without_warning() -> None:
+    tables = assemble_overlay(frame(), overlay(), 7, split_of)
+    segment = tables.segments[(tables.segments.icao24 == "a00003") & (tables.segments.segment_id == 1)]
+    assert segment.cell_id.iloc[0] == "unknown"
+
+
+def test_missing_contact_lag_is_preserved_with_its_missing_flag() -> None:
+    tables = assemble_overlay(frame(), overlay(), 7, split_of)
+    row = tables.attacked_rows[(tables.attacked_rows.icao24 == "a00001") & (tables.attacked_rows.segment_id == 1) & (tables.attacked_rows.time == 0)].iloc[0]
+    assert pd.isna(row.contact_lag_seconds)
+    assert row.contact_lag_missing
