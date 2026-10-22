@@ -115,7 +115,7 @@ def place_episodes(
 
     Returns ``(accepted, rejected)``:
 
-    * ``accepted`` is ``(start_offset, n_rows)`` in request order.
+    * ``accepted`` is ``(request_index, start_offset, n_rows)`` in request order.
     * ``rejected`` is ``(request_index, reason)`` where reason is one of
       :data:`REJECTION_REASONS`.
 
@@ -166,7 +166,7 @@ def place_episodes(
         )
         return [], [(k, reason) for k in range(n_requested)]
 
-    accepted: list[tuple[int, int]] = []
+    accepted: list[tuple[int, int, int]] = []
     rejected: list[tuple[int, str]] = []
     overlap_pruned = 0
 
@@ -184,11 +184,12 @@ def place_episodes(
         saw_gap = False
         for raw_start in order:
             start = int(raw_start)
-            if _overlaps(start, accepted, n_rows):
+            placed = [(item[1], item[2]) for item in accepted]
+            if _overlaps(start, placed, n_rows):
                 saw_overlap = True
                 continue
             if not _gap_ok(
-                start, accepted, times, n_rows, min_gap_seconds
+                start, placed, times, n_rows, min_gap_seconds
             ):
                 saw_gap = True
                 continue
@@ -207,7 +208,7 @@ def place_episodes(
             rejected.append((request_index, reason))
             continue
 
-        accepted.append((chosen, n_rows))
+        accepted.append((request_index, chosen, n_rows))
         before = available.size
         available = available[
             (available + n_rows <= chosen) | (available >= chosen + n_rows)

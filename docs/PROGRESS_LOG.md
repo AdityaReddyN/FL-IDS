@@ -271,3 +271,17 @@ only then implement Stage 1 attack-generation code.
 **Problems / surprises:** None after the direct altitude API compatibility test was retained.
 **Decisions made:** D-025.
 **Next steps:** Human review of the pure assembler and authorization before any writer or real-data check.
+
+### 2026-10-22 — Session 3d-2 — Codex — Assembler review fixes
+**Goal:** Verify and fix review findings without a writer, CLI, generated dataset, training, or real-data run.
+**Done:** Confirmed and fixed replay source IDs (now global source-row IDs), separated placement from build RNG streams, returned accepted request indexes, added stream golden tests, made provenance JSON strict, and strengthened shuffled-input/natural-key, replay, and ID-uniqueness tests. D-026 records behavior changes and deferred metadata.
+**Ran / verified:** Newly added tests first failed at collection before missing APIs existed; focused review suite then passed 33 tests. No `check_*_on_real_data.py` script was run.
+**NOT verified:** No real data, generated data, results, writer, manifest writer, CLI, quota/density mode, ghost/DoS, or training was touched. The `speed_band` and freeze-anchor metadata remain unfilled by design.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** Three nearby accepted episodes can produce windows overlapping two episodes; `label_windows` correctly asserts rather than assigning an ambiguous single episode ID. The ID-uniqueness test therefore retains the configured 600-second gap.
+**Decisions made:** D-026.
+**Next steps:** Resolve the questions below before changing selection semantics or multi-episode defaults.
+**Questions for human:**
+1. Selection `u` currently depends only on `(global_seed, icao24, segment_id)`, so same-seed overlays at the same tau select identical segments. Recommend an explicit per-overlay key in entropy, recorded in the future manifest: it prevents cross-overlay segment/class confounding and episode-ID collisions when merging overlays, but makes selections non-nested. Alternatives are a manifest-recorded per-overlay seed (similar effect, weaker compositional clarity) or deliberate nested selection (keeps nesting but increases confounding when overlays are merged). Which should be adopted?
+2. Should `eta_requested` remain this implementation's Bernoulli `tau`, or should it represent the paper's Eq. 10 density/strength eta? Recommend retaining `tau` as selection probability and adding separately named paper parameters only after the equation mapping is approved.
+3. For 900-second episodes with a 600-second minimum gap, many requests will reasonably reject as `gap_violation`. Recommend one episode per segment for 900 s (or reduce requests to two only for segments with demonstrably sufficient span); approve a different default only with an explicit capacity study.

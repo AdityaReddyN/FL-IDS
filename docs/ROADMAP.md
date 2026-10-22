@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — pure in-memory assembly and selection implemented (D-020--D-025); writer, manifest writer, CLI, and dataset generation not started**
+**Current phase: 1 — pure in-memory assembly/review fixes implemented (D-020--D-026); writer, manifest writer, CLI, and dataset generation not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -58,6 +58,9 @@ through with `~~` and explain in PROGRESS_LOG).
   segment Bernoulli selection, placement/build rejection accounting, seven
   validated tables, and synthetic isolation/determinism tests (D-025); read-only
   real-data assembler check written but NOT run
+- [x] Assembler review: global replay provenance, isolated placement stream,
+  explicit accepted request indexes, strict provenance JSON, shuffled-input test
+  (D-026); selection naming and deferred metadata documented for approval
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

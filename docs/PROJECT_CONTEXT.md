@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 3d-1.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 3d-2.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -13,7 +13,8 @@ Phase 1 foundation plus kinematics, eligibility, replay-source lookup, episode
 placement, ramp multipliers, manipulation primitives, displacement composition,
 gradual deviation, delayed replay, freeze, detectability helpers, in-memory
 episode assembly, v2-anchored window labelling, and a pure in-memory overlay
-assembler with deterministic selection/provenance tables (D-020--D-025). Gate 0
+assembler with review-fixed replay provenance and isolated placement streams
+(D-020--D-026). Gate 0
 approved. The dataset writer, manifest writer, CLI, and dataset generation are
 not authorized; `configs/attack_v3_stage1.yaml` remains
 `status: proposed_unapproved`, so `require_approved` refuses generation until

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from flids.attacks.assembler import OverlaySpec, assemble_overlay
+from flids.attacks.assembler import OverlaySpec, assemble_overlay, strict_json
 from flids.attacks.schemas import TABLE_NAMES, validate_table
 from flids.attacks.windows import label_windows
 
@@ -51,15 +51,22 @@ def assert_tables_valid(result) -> None:
         validate_table(getattr(result, name), name)
 
 
+def without_input_order_ids(table: pd.DataFrame) -> pd.DataFrame:
+    ignored = ("row_id", "source_row_id", "start_source_row_id", "end_source_row_id", "replay_source_row_id")
+    return table.drop(columns=[name for name in ignored if name in table])
+
+
 def test_assembler_is_deterministic_order_independent_and_valid() -> None:
     source = frame()
     first = assemble_overlay(source, overlay(), 7, split_of)
-    second = assemble_overlay(source.copy(), overlay(), 7, split_of)
+    second = assemble_overlay(source.sample(frac=1.0, random_state=3), overlay(), 7, split_of)
     assert_tables_valid(first)
     assert_tables_valid(second)
     for name in TABLE_NAMES:
-        left = getattr(first, name).sort_values(list(getattr(first, name).columns)).reset_index(drop=True)
-        right = getattr(second, name).sort_values(list(getattr(second, name).columns)).reset_index(drop=True)
+        left = without_input_order_ids(getattr(first, name))
+        right = without_input_order_ids(getattr(second, name))
+        left = left.sort_values(list(left.columns)).reset_index(drop=True)
+        right = right.sort_values(list(right.columns)).reset_index(drop=True)
         pd.testing.assert_frame_equal(left, right)
 
 
@@ -111,8 +118,21 @@ def test_replay_and_baro_plus_geo_glitch_screen() -> None:
     active = replay.attacked_rows[replay.attacked_rows.is_attack_row]
     assert not active.empty
     assert active.replay_source_row_id.notna().all()
-    assert (active.replay_source_row_id < active.source_row_id).all()
+    for row in active.itertuples():
+        source_row = replay.attacked_rows[replay.attacked_rows.source_row_id == row.replay_source_row_id].iloc[0]
+        assert (source_row.icao24, source_row.segment_id) == (row.icao24, row.segment_id)
+        assert abs(source_row.time - (row.time - 300.0)) <= 5.0
     source.loc[(source.icao24 == "a00001") & (source.segment_id == 0) & (source.time == 400), "geoaltitude"] += 9999
     altitude = assemble_overlay(source, overlay(attack_family="altitude_constant_deviation", subtype="altitude", altitude_variant="baro_plus_geo", shift_m=125.0, geoaltitude_glitch_threshold_m=1000.0), 3, split_of)
     row = altitude.attacked_rows[(altitude.attacked_rows.icao24 == "a00001") & (altitude.attacked_rows.segment_id == 0) & (altitude.attacked_rows.time == 400)]
     assert not row.is_attack_row.any()
+
+
+def test_episode_and_rejection_ids_are_unique_for_three_requests() -> None:
+    tables = assemble_overlay(frame(), overlay(episodes_per_segment=3), 3, split_of)
+    values = list(tables.episodes.episode_id) + list(tables.rejected_candidates.candidate_id)
+    assert len(values) == len(set(values))
+
+
+def test_strict_json_converts_non_finite_values_to_null() -> None:
+    assert strict_json({"x": np.nan, "y": np.inf}) == '{"x":null,"y":null}'

@@ -67,7 +67,7 @@ def test_n_rows_uses_floor_divide() -> None:
     accepted, rejected = place_episodes(
         np.array([0], dtype=np.int64), times, 125, 1, seeded
     )
-    assert accepted == [(0, 12)]
+    assert accepted == [(0, 0, 12)]
     assert rejected == []
 
 
@@ -112,7 +112,7 @@ def test_gap_violation_and_rejected_starts_stay_available() -> None:
         lambda _k: AscendingGenerator(),
         min_gap_seconds=600.0,
     )
-    assert accepted == [(0, 12), (71, 12)]
+    assert accepted == [(0, 0, 12), (1, 71, 12)]
     assert rejected == [(2, "gap_violation")]
 
 
@@ -140,7 +140,7 @@ def test_accepted_windows_do_not_overlap() -> None:
     times = regular_times(400)
     valid = np.arange(400 - 12 + 1, dtype=np.int64)
     accepted, _ = place_episodes(valid, times, 120, 3, seeded)
-    windows = [(start, start + n_rows) for start, n_rows in accepted]
+    windows = [(start, start + n_rows) for _, start, n_rows in accepted]
     for i, (a_start, a_end) in enumerate(windows):
         for b_start, b_end in windows[i + 1 :]:
             assert a_end <= b_start or b_end <= a_start
@@ -159,7 +159,7 @@ def test_per_request_generator_controls_selection() -> None:
         valid, times, 120, 2, rng_for_request, min_gap_seconds=600.0
     )
     assert calls == [0, 1]
-    assert accepted[0] == (5, 12)
+    assert accepted[0] == (0, 5, 12)
     assert rejected == []
 
 
@@ -205,7 +205,7 @@ def test_exhausted_starts_after_overlap_pruning_report_overlap() -> None:
         lambda _k: AscendingGenerator(),
         min_gap_seconds=0.0,
     )
-    assert accepted == [(0, 12), (12, 12)]
+    assert accepted == [(0, 0, 12), (1, 12, 12)]
     # Starts 0..11 were pruned after the first placement; the third request
     # has nothing left, and the cause is overlap, not a missing start.
     assert rejected == [(2, "overlap")]

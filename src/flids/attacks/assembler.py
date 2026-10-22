@@ -13,7 +13,7 @@ from .eligibility import REQUIRED_FIELDS, eligible_starts, pair_valid, replay_so
 from .episode import EpisodeSpec, HORIZONTAL_FAMILIES, REPLAY_FAMILIES, build_episode
 from .keys import add_natural_keys
 from .placement import filter_starts_by_span, place_episodes, rows_for_duration
-from .seeding import episode_rng, parameter_rng, segment_rng
+from .seeding import episode_rng, parameter_rng, placement_rng, segment_rng
 from .schemas import FEATURE_FIELDS, TABLE_NAMES, empty_table, validate_table
 from .windows import label_windows
 
@@ -72,6 +72,19 @@ def _table(name, records):
     return out[list(schema)]
 
 
+def strict_json(value) -> str:
+    """Encode JSON without non-standard NaN or Infinity tokens."""
+    def clean(item):
+        if isinstance(item, dict):
+            return {key: clean(val) for key, val in item.items()}
+        if isinstance(item, (list, tuple)):
+            return [clean(val) for val in item]
+        if isinstance(item, (float, np.floating)) and not np.isfinite(item):
+            return None
+        return item
+    return json.dumps(clean(value), allow_nan=False, sort_keys=True, separators=(",", ":"))
+
+
 def _required(overlay):
     if overlay.attack_family in HORIZONTAL_FAMILIES: return REQUIRED_FIELDS["horizontal_manipulation"]
     if overlay.attack_family == "freeze_fixed_value": return REQUIRED_FIELDS["freeze"]
@@ -101,9 +114,9 @@ def assemble_overlay(df: pd.DataFrame, overlay: OverlaySpec, global_seed: int, s
         segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(np.nanmedian(seg.lat), np.nanmedian(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
         multi=np.zeros(len(seg)); pos=np.full(len(seg), "none", dtype=object); ids=np.full(len(seg), -1, dtype=np.int64); meta={}; modified={}; replay_info={}
         if selected:
-            accepted, failures = place_episodes(starts, times, overlay.duration_seconds, overlay.episodes_per_segment, lambda k: episode_rng(global_seed, icao24, segment_id, k), max_per_segment=3, min_gap_seconds=overlay.min_gap_seconds)
+            accepted, failures = place_episodes(starts, times, overlay.duration_seconds, overlay.episodes_per_segment, lambda k: placement_rng(global_seed, icao24, segment_id, k), max_per_segment=3, min_gap_seconds=overlay.min_gap_seconds)
             for k, reason in failures: rejected.append(dict(candidate_id=_episode_id(icao24,segment_id,k),icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,requested_start_row_offset=-1,requested_n_rows=n_rows,stage="placement",reason=reason,details_json="{}"))
-            for k,(start,count) in enumerate(accepted):
+            for k,start,count in accepted:
                 prng=parameter_rng(global_seed,icao24,segment_id,k); bearing=float(prng.uniform(0,360)) if overlay.attack_family in HORIZONTAL_FAMILIES else None; shift=(1 if prng.integers(2) else -1)*(overlay.shift_m or 0) if overlay.attack_family=="altitude_constant_deviation" else overlay.shift_m
                 spec=EpisodeSpec(overlay.attack_family,overlay.tier,overlay.subtype,overlay.altitude_variant,overlay.onset_mode,overlay.ramp_rows,overlay.magnitude_m,bearing,overlay.sigma_m,overlay.kappa,overlay.per_step_sigma_m,shift,overlay.replay_delay_s,overlay.replay_tolerance_s)
                 result=build_episode({f:seg[f].to_numpy(float) for f in FEATURE_FIELDS},times,row_ok,sources,start,count,spec,episode_rng(global_seed,icao24,segment_id,k)); eid=_episode_id(icao24,segment_id,k)
@@ -113,10 +126,10 @@ def assemble_overlay(df: pd.DataFrame, overlay: OverlaySpec, global_seed: int, s
                 for offset in range(count):
                     modified[start + offset] = {field: float(values[offset]) for field, values in result.values.items()}
                     if result.delays is not None and np.isfinite(result.delays[offset]):
-                        replay_info[start + offset] = (int(sources[start + offset]), float(result.delays[offset]))
+                        replay_info[start + offset] = (int(seg.source_row_id.iloc[sources[start + offset]]), float(result.delays[offset]))
                 episodes.append(dict(episode_id=eid,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(seg.source_row_id[start]),end_source_row_id=int(seg.source_row_id[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="uniform_per_subairspace",eta_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation="sha256(global_seed|icao24|segment_id); episode/params spawn_key=(k,)",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 for offset, fields in enumerate(result.changed_fields):
-                    if fields: provenance.append(dict(source_row_id=int(seg.source_row_id[start+offset]),episode_id=eid,changed_fields_json=json.dumps(fields),orig_values_json=json.dumps({f:float(seg[f].iloc[start+offset]) for f in fields}),mod_values_json=json.dumps({f:float(result.values[f][offset]) for f in fields}),ramp_multiplier=np.float32(result.multipliers[offset]),validation_status="accepted"))
+                    if fields: provenance.append(dict(source_row_id=int(seg.source_row_id[start+offset]),episode_id=eid,changed_fields_json=strict_json(fields),orig_values_json=strict_json({f:float(seg[f].iloc[start+offset]) for f in fields}),mod_values_json=strict_json({f:float(result.values[f][offset]) for f in fields}),ramp_multiplier=np.float32(result.multipliers[offset]),validation_status="accepted"))
         for i,row in seg.iterrows():
             eid=int(ids[i]); family, subtype, tier=meta.get(eid,(None,None,None)); mods={f: float(row[f]) for f in FEATURE_FIELDS}
             mods.update(modified.get(i, {})); replay_id, replay_delay = replay_info.get(i, (None, None))
