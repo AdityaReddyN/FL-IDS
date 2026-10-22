@@ -44,11 +44,12 @@ def overlay_from_config(
             duration = episodes["nominal_duration_seconds"]
     tiers = config["tiers"]
     magnitude = sigma = shift = None
-    kappa = float(config["gaussian"]["eq12_noise_kappa_by_tier"].get(tier, 0.0))
+    gaussian = config["attacks"]["gaussian"]
+    kappa = float(gaussian["eq12_noise_kappa_by_tier"].get(tier, 0.0))
     if attack_family in {"constant_deviation", "gradual_deviation"}:
         magnitude = float(tiers["horizontal_meters"][tier])
     elif attack_family == "random_gaussian_deviation":
-        sigma = float(config["gaussian"]["deviation_sigma_meters_by_tier"][tier])
+        sigma = float(gaussian["deviation_sigma_meters_by_tier"][tier])
     elif attack_family == "altitude_constant_deviation":
         shift = float(tiers["altitude_residual_calibration_meters"]["shared_shift_both_variants"][tier])
     subtype = {
@@ -72,7 +73,7 @@ def overlay_from_config(
         magnitude_m=magnitude,
         sigma_m=sigma,
         kappa=kappa,
-        per_step_sigma_m=float(config["gaussian"]["per_step_noise_sigma_meters"]),
+        per_step_sigma_m=float(gaussian["per_step_noise_sigma_meters"]),
         shift_m=shift,
         replay_delay_s=float(replay["paper_grounded_delay_seconds"]),
         replay_tolerance_s=float(replay["timestamp_tolerance_seconds"]),

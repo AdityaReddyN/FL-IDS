@@ -358,3 +358,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-031 implementation choice, authorized by the human's explicit go after the recommended resolution was stated.
 **Next steps:** Run the full suite after the latest writer/config/CLI changes, check `--help`, commit all Stage B resolution code/tests/docs, confirm clean status, then invoke Stage C seed 42 only. After generation, review the written config, manifest, plausibility report, table schemas/counts/hashes, and plots; stop for human Gate 1 review before Phase 2.
 **Questions for human:** None before the authorized seed-42 Stage C run; Gate 1 approval is still required before Phase 2.
+
+### 2026-10-22 — Session 4g — Codex — Stage C config preflight correction
+**Goal:** Start the explicitly authorized seed-42 Stage C run after D-030 resolution and a clean commit.
+**Done:** Invoked the seed-42 CLI at the verified new output path. It failed before writer invocation because `run_config.py` read `gaussian` from the wrong YAML level. Updated the test fixture to match the approved YAML structure (`attacks.gaussian`) and corrected parameter mapping.
+**Ran / verified:** The regression test first failed with `KeyError: gaussian`; after the fix, `tests/test_run_config.py` passed (3 passed). Full suite passed: 273 passed in 18.45s. The failed CLI attempt stopped before creating the output directory; no dataset files were written.
+**NOT verified:** Real-data configuration execution after the fix, output directory creation, Stage C tables/manifest/report/plots, physical metrics, and Gate 1. No later phase was started.
+**Results:** No experiment or dataset result; no E-### entry.
+**Problems / surprises:** The approved YAML nests Gaussian settings under `attacks.gaussian`; the earlier synthetic fixture had the wrong top-level shape, masking this CLI mapping defect.
+**Decisions made:** None.
+**Next steps:** Commit the config-mapping fix and this status update; recheck the output target is absent and worktree clean; retry only seed 42 to `data/attack_generation_v3/stage1_seed_42`. Then inspect the generated result files and stop for Gate 1 review.
+**Questions for human:** None before the authorized seed-42 retry; Gate 1 review remains required before Phase 2.

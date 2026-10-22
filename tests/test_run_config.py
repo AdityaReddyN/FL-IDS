@@ -6,9 +6,8 @@ from flids.attacks.run_config import dry_run_summary, overlay_from_config
 def config():
     return {
         "episodes": {"nominal_duration_seconds": 120, "max_per_segment": 3, "minimum_inter_episode_gap_seconds": 600, "freeze_duration_tiers_seconds": {"moderate": 120}, "onset": {"default_steps": 3}},
-        "attacks": {"stage1_types": ["constant_deviation", "random_gaussian_deviation", "gradual_deviation", "altitude_constant_deviation", "replay_partial_field", "replay_full_field", "freeze_fixed_value"], "altitude_variants": ["baro_only", "baro_plus_geo"]},
+        "attacks": {"stage1_types": ["constant_deviation", "random_gaussian_deviation", "gradual_deviation", "altitude_constant_deviation", "replay_partial_field", "replay_full_field", "freeze_fixed_value"], "altitude_variants": ["baro_only", "baro_plus_geo"], "gaussian": {"deviation_sigma_meters_by_tier": {"moderate": 1250.0}, "eq12_noise_kappa_by_tier": {"moderate": 0.1}, "per_step_noise_sigma_meters": 25.0}},
         "tiers": {"horizontal_meters": {"moderate": 2500.0}, "altitude_residual_calibration_meters": {"shared_shift_both_variants": {"moderate": 125.0}}},
-        "gaussian": {"deviation_sigma_meters_by_tier": {"moderate": 1250.0}, "eq12_noise_kappa_by_tier": {"moderate": 0.1}, "per_step_noise_sigma_meters": 25.0},
         "region": {"primary_dataset_mode": "uniform_per_subairspace"},
         "prevalence": {"tau_sweep": [0.005, 0.01]},
         "eligibility": {"replay": {"paper_grounded_delay_seconds": 300, "timestamp_tolerance_seconds": 5}, "geoaltitude_glitch_screen": {"train_only_q999_threshold_meters": 2887.98}},

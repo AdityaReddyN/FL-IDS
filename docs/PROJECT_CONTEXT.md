@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4f Stage B resolution.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4g Stage C preflight fix.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -24,9 +24,10 @@ vectorized/whole-segment-chunk multi-overlay assembly, lexicographic conflict
 resolution, a per-overlay selection-evidence table, a guarded Parquet writer,
 manifest/config, descriptive plausibility report, multi-family CLI, and SVG
 plot helper. D-031 corrects nullable episode IDs and records the new eight-table
-output. No dataset has been written in Stage C. The worktree was clean when
-checked after `.claude/` was handled. Stage C may now run for seed 42; Gate 1
-remains pending and Phase 2/later phases must wait for human review.
+output. The initial seed-42 CLI attempt exposed a config-mapping defect before
+the writer ran; no dataset was written. The mapper now follows the approved
+YAML's `attacks.gaussian` nesting. Stage C may retry seed 42 after this fix is
+committed; Gate 1 remains pending and Phase 2/later phases must wait for review.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
