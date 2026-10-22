@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 authorized; four attempts incomplete; chunk timing/progress now instrumented; Gate 1 pending**
+**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 generated and manifest-verified; Gate 1 review pending (zero accepted gradual episodes)**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -81,7 +81,7 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Unit tests (determinism, no leakage across aircraft, delay correctness, no edits outside intervals)
 - [x] Visual sanity plot script (example trajectories before/after)
 - [x] Multi-overlay conflict resolution and per-overlay selection evidence table (D-031)
-- [ ] Stage C: generate seed 42 into a new `data/attack_generation_v3/<run_id>/` directory (four attempts incomplete; `stage1_seed_42_retry3/` ran ~1 hour but has no valid Parquet footers; profiling needed)
+- [x] Stage C: generate seed 42 into `data/attack_generation_v3/stage1_seed_42_retry4/`; all eight Parquet files, manifest row counts/hashes, clean commit, and schemas verified; six of seven family plots written because all 48 selected gradual candidates were rejected as `insufficient_effective_rows`
 - [ ] **GATE 1: human reviews manifest, report, plots**
 
 ## Phase 2 — Sequence dataset v3 + shortcut audit

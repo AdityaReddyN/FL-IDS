@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4j Stage C retry.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-23, Session 4m Stage C generation.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -26,15 +26,21 @@ manifest/config, descriptive plausibility report, multi-family CLI, and SVG
 plot helper. D-031 corrects nullable episode IDs and records the new eight-table
 output. Two seed-42 attempts were manually stopped after prolonged CPU-bound
 execution; directories `stage1_seed_42/` and `stage1_seed_42_retry1/` contain
-incomplete Parquet files and must not be used. The multi-overlay merge now
-precomputes segment index maps instead of repeatedly scanning full chunk frames;
-synthetic tests pass. A fourth attempt (`stage1_seed_42_retry3/`) ran for about
-one hour and produced partial files (about 28.6 MB attacked_rows) but no `PAR1`
-footers or final manifest/config/report; it was stopped. Writer/CLI now emit
-chunk-start and chunk-complete timings, segment counts, and cumulative row
-counts to stderr. The full-data runtime is still unverified; a fresh seed-42
-retry may use these diagnostics. Gate 1 remains pending; Phase 2/later phases
-must wait for review.
+incomplete Parquet files and must not be used. A fifth seed-42 attempt,
+`data/attack_generation_v3/stage1_seed_42_retry4/`, completed after adding
+chunk-start/chunk-complete timings to stderr. All eight tables have valid
+footers; manifest row counts, SHA-256 values, clean commit (`72958b0`), and
+canonical column order/types were independently checked. The manifest records
+2,970,285 attacked rows/step labels, 21,389 segments, 149,723 overlay-selection
+rows, 263 accepted episodes, 63 rejected candidates, and 246,200 windows.
+Accepted episodes exist for six families; gradual deviation has 48 selected
+candidates, all rejected as `insufficient_effective_rows` under the approved
+120-second nominal duration/five-effective-row rule. Therefore only six family
+sanity plots exist. Physical plausibility is descriptive only; RF replay
+fidelity, raw ADS-B bit-level effects, signal strength/receiver processing, and
+multi-receiver multilateration checks are unavailable. Gate 1 review is pending;
+do not begin Phase 2 or later phases until the human reviews the manifest,
+report, and plots and resolves the zero-gradual-episode issue.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
