@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A parameter values approved (D-029); Stage B single-overlay infrastructure implemented; multi-overlay representation/review remains open (D-030); no dataset generated**
+**Current phase: 1 — Stage A approved (D-029); Stage B single-overlay infrastructure reviewed; Stage C authorized but held by dirty worktree and unresolved D-030; no dataset generated; Gate 1 pending**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions

@@ -336,3 +336,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-029 (human approval of Draft 4 values); D-030 (preserve golden and defer multi-overlay representation/ID correction pending human direction).
 **Next steps:** Resolve D-030 before Stage C. Review Stage B implementation, decide whether to repair episode-ID rounding despite the golden, and choose how merged per-overlay selection/eligibility is represented. Stage C additionally requires a clean committed tree and explicit human go after Stage B review; `.claude/` remains unrelated and untracked.
 **Questions for human:** (1) May the row/step episode-ID rounding be corrected, knowingly changing the pre-refactor golden, so all tables share exact episode IDs? (2) For merged multi-overlay output, should we add a per-overlay selection table or extend the `segments` schema with overlay-specific draws/eligibility (or another representation)?
+
+### 2026-10-22 — Session 4e — Codex — Stage C authorization and gate check
+**Goal:** Continue after the human reviewed Stage B and authorized the next stages, while respecting the Stage C clean-tree and Phase 1 Gate 1 requirements.
+**Done:** Re-read project context and verified the live branch, worktree, config status, latest commit, and Phase 1 gate notes. Updated PROJECT_CONTEXT and ROADMAP to record the Stage B review and authorization; execution remains held by the unrelated untracked `.claude/` directory and unresolved D-030 choices.
+**Ran / verified:** Branch is `phase1-generation`; config remains `status: approved`; HEAD is `6922b4b phase1: add Stage B single-overlay infrastructure`; worktree reports only `?? .claude/` (Git also warns about access to the user ignore file and `.pytest_cache/`).
+**NOT verified:** No real-data check, dry-run, writer invocation, generation, sequence construction, training, or later-phase work was run. Gate 1 remains pending and no dataset exists.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** The explicit go does not clear the writer's clean-tree requirement. The single-overlay writer also cannot implement the approved multi-overlay conflict contract until the selection-evidence representation in D-030 is chosen. Phase 2 must wait for Gate 1 review.
+**Decisions made:** None.
+**Next steps:** Preserve `.claude/`; the human must handle that unrelated untracked directory so the tree can be clean. Resolve D-030's episode-ID consistency and per-overlay selection representation; then Stage C may run under the received authorization. After generation, stop for Gate 1 review before Phase 2.
+**Questions for human:** For D-030, approve correcting row/step episode IDs despite changing the frozen golden, and choose an added per-overlay selection table (recommended) or another representation for overlay-specific eligibility/selection evidence.

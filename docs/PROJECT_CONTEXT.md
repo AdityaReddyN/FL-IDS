@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4d Stage B.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4e Stage C gate check.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -23,9 +23,11 @@ vectorized/whole-segment-chunk assembly, a guarded single-overlay Parquet writer
 manifest, descriptive plausibility report, single-overlay CLI, and SVG plot
 helper are implemented and covered by synthetic tests. No dataset has been
 written. The golden regression exposed lossy float64 coercion of some nullable
-row/step episode IDs in legacy output. Multi-overlay conflict handling and the
-merged `segments` selection representation remain unresolved (D-030); do not
-run Stage C until those choices and Stage B review are complete.
+row/step episode IDs in legacy output. The human reviewed Stage B and authorized
+the next stage, but Stage C is held: `.claude/` is unrelated and untracked, and
+D-030's multi-overlay selection representation and episode-ID consistency
+questions remain unresolved. Gate 1 has not been reviewed; Phase 2 and later
+phases must wait.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
