@@ -28,12 +28,11 @@ output. Two seed-42 attempts were manually stopped after prolonged CPU-bound
 execution; directories `stage1_seed_42/` and `stage1_seed_42_retry1/` contain
 incomplete Parquet files and must not be used. The multi-overlay merge now
 precomputes segment index maps instead of repeatedly scanning full chunk frames;
-synthetic tests pass. A third attempt (`stage1_seed_42_retry2/`) ran about 33
-minutes and grew its Parquet files to about 50 MB, but was stopped before the
-writer completed; files have no `PAR1` footer and no final manifest/config/report.
-This indicates progress, but full-run throughput is still unverified. Retry under
-a new run directory after commit. Gate 1 remains pending; Phase 2/later phases
-must wait for review.
+synthetic tests pass. A fourth attempt (`stage1_seed_42_retry3/`) ran for about
+one hour and produced partial files (about 28.6 MB attacked_rows) but no `PAR1`
+footers or final manifest/config/report; it was stopped. Full-run throughput
+remains unverified and needs profiling before another full-data run. Gate 1
+remains pending; Phase 2/later phases must wait for review.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

@@ -402,3 +402,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None. D-031 semantics unchanged.
 **Next steps:** Commit this status update; if continuing, run seed 42 into a new directory and allow the writer to complete. Validate the complete tables, manifest, report, and plots, then stop for human Gate 1 review. Do not start Phase 2 until Gate 1 is approved.
 **Questions for human:** None; seed-42 generation is authorized. Gate 1 approval remains required before Phase 2.
+
+### 2026-10-22 — Session 4k — Codex — Stage C full-run throughput hold
+**Goal:** Allow the approved seed-42 generation a longer interval and determine whether the multi-overlay chunk writer can complete.
+**Done:** Started a fresh run in `data/attack_generation_v3/stage1_seed_42_retry3/` from clean commit `64202bd`. Let it run for about one hour, then stopped it because no second chunk was visibly finalized. Preserved the partial directory. Read-only checks found no `PAR1` footer on any of its eight Parquet paths and no manifest/config/report. Updated the current snapshot and roadmap; Phase 2 was not started.
+**Ran / verified:** The generator process remained responsive and CPU-active, with memory use varying roughly between 400 MB and 1 GB. After stopping, partial file sizes were: attacked_rows 28,590,908 bytes; step_labels 2,040,080; overlay_selections 673,847; episodes 249,041; windows 257,150; segments 202,726; modified_row_provenance 85,699; rejected_candidates 28,216. All lack the `PAR1` end marker. No tests or model training were run.
+**NOT verified:** Complete dataset, readable Parquet metadata/row counts, manifest/table hashes, final schema validation, plausibility report, plots, physical metrics, or Gate 1. Full-run duration and cause of the slow chunk remain unverified. No later phase was started.
+**Results:** No usable dataset or experiment; no E-### entry. `stage1_seed_42_retry3/` is incomplete and must not be consumed or overwritten.
+**Problems / surprises:** The writer makes partial progress, but still had not finalized a second chunk after an hour; the output sizes become informative only after process stop. Current implementation lacks chunk-level progress reporting, so the exact slow operation is unknown.
+**Decisions made:** None. D-031 semantics unchanged.
+**Next steps:** Profile a representative chunk and add chunk-level timing/progress before another full-data attempt. Preserve all partial run directories. After a complete seed-42 run, inspect artifacts and stop for Gate 1 review; do not begin Phase 2 until approval.
+**Questions for human:** None; Stage C seed-42 generation remains authorized. Gate 1 approval remains required before Phase 2.
