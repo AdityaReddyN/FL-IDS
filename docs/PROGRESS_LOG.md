@@ -305,3 +305,13 @@ only then implement Stage 1 attack-generation code.
 **Problems / surprises:** Gaussian overlay assembly was much slower than other families: 126.45 seconds per 100 sampled segments, extrapolating to about 27,046 seconds for all 21,389 segments. Other families were approximately 10.42–11.56 seconds per 100. Gradual 120-second episodes were all rejected under the existing five-effective-row rule (12-row gradual episodes yield only four effective rows). The real-data run passed schema validation despite source missingness.
 **Decisions made:** D-028.
 **Next steps:** Human reviews the approval sheet values, selects/approves parameter values, and changes YAML status to `approved`. Stop here until that gate is satisfied.
+
+### 2026-10-22 — Session 4b — Codex — New-chat project handoff
+**Goal:** Create a portable context document so a new chat can learn the project mission, current implementation, scientific constraints, decisions, gates, and exact Phase 1 next steps.
+**Done:** Added `docs/CHAT_HANDOFF.md` with a repository navigation guide, current branch/config/worktree snapshot, data and E-001 baseline context, Phase 1 module map, D-020--D-028 summary, measured Stage A pipeline-validation notes, and Stage A/B/C gates. Linked it from `docs/PROJECT_CONTEXT.md`.
+**Ran / verified:** Read `AGENTS.md`, project context, roadmap, latest progress entries, decisions, experiment registry, and attack design. Confirmed branch `phase1-generation`, latest commit `61edcca`, config `proposed_unapproved`, and untracked `.claude/` at snapshot time. No tests or data scripts were run; no data files were accessed.
+**NOT verified:** No claim was made that a full suite passed after Stage A's D-028 changes. No new code, dataset, writer, manifest, CLI, or generation was added.
+**Results:** Documentation only; no experiment and no E-### entry.
+**Problems / surprises:** Git reported permission warnings for its user-level ignore file and `.pytest_cache/`; `.claude/` remains untracked and untouched.
+**Decisions made:** None.
+**Next steps:** Human approval of provisional Stage A parameters and setting `configs/attack_v3_stage1.yaml` to `approved` are still required before Stage B.

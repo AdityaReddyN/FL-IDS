@@ -184,6 +184,8 @@ approval sheet and read-only validation are complete; YAML remains
   window-yield, and no-op conventions is pending the three check scripts.
 
 ## Where things are
+- New-chat handoff summary: `docs/CHAT_HANDOFF.md` (navigation aid; the canonical
+  session rules and current facts remain in this file and `AGENTS.md`).
 - Agent rules + roadmap: `AGENTS.md`, `docs/ROADMAP.md`
 - Decisions: `docs/DECISIONS.md`; experiments: `docs/EXPERIMENT_REGISTRY.md`
 - Attack methodology mapping: `docs/attack_generation_methodology.md`
