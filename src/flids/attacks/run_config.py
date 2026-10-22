@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .assembler import OverlaySpec
-from .assembler import iter_assembled_chunks
+from .assembler import iter_assembled_multi_chunks
 
 
 _FAMILIES = {
@@ -86,32 +86,38 @@ def overlay_from_config(
 
 def dry_run_summary(
     df,
-    overlay: OverlaySpec,
+    overlay: OverlaySpec | tuple[OverlaySpec, ...] | list[OverlaySpec],
     global_seed: int,
     split_of,
     *,
     max_segments_per_chunk: int = 64,
 ) -> dict:
     """Count the in-memory assembly without creating files or directories."""
+    overlays = (overlay,) if isinstance(overlay, OverlaySpec) else tuple(overlay)
     result = {
         "input_rows": int(len(df)),
-        "eligible_segments": 0,
-        "selected_segments": 0,
+        "eligible_segments_by_overlay": {},
+        "selected_segments_by_overlay": {},
+        "chosen_segments_by_overlay": {},
         "accepted_episodes": 0,
         "rejected_by_reason": {},
         "rows_by_table": {},
     }
-    for chunk in iter_assembled_chunks(
-        df, overlay, global_seed, split_of,
+    for chunk in iter_assembled_multi_chunks(
+        df, overlays, global_seed, split_of,
         max_segments_per_chunk=max_segments_per_chunk,
     ):
-        result["eligible_segments"] += int(chunk.segments.eligible.sum())
-        result["selected_segments"] += int(chunk.segments.selected.sum())
         result["accepted_episodes"] += len(chunk.episodes)
-        for name in ("attacked_rows", "step_labels", "episodes", "rejected_candidates", "modified_row_provenance", "windows", "segments"):
+        for key, group in chunk.overlay_selections.groupby("overlay_key", sort=False):
+            result["eligible_segments_by_overlay"][str(key)] = result["eligible_segments_by_overlay"].get(str(key), 0) + int(group.eligible.sum())
+            result["selected_segments_by_overlay"][str(key)] = result["selected_segments_by_overlay"].get(str(key), 0) + int(group.selected.sum())
+            result["chosen_segments_by_overlay"][str(key)] = result["chosen_segments_by_overlay"].get(str(key), 0) + int(group.chosen.sum())
+        for name in ("attacked_rows", "step_labels", "episodes", "rejected_candidates", "modified_row_provenance", "windows", "segments", "overlay_selections"):
             result["rows_by_table"][name] = result["rows_by_table"].get(name, 0) + len(getattr(chunk, name))
         if not chunk.rejected_candidates.empty:
             for reason, count in chunk.rejected_candidates.reason.value_counts().items():
                 key = str(reason)
                 result["rejected_by_reason"][key] = result["rejected_by_reason"].get(key, 0) + int(count)
+    result["eligible_segments"] = sum(result["eligible_segments_by_overlay"].values())
+    result["selected_segments"] = sum(result["selected_segments_by_overlay"].values())
     return result

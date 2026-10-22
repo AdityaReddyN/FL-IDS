@@ -6,7 +6,7 @@ import hashlib
 import numpy as np
 import pandas as pd
 
-from flids.attacks.assembler import OverlaySpec, assemble_overlay, iter_assembled_chunks, strict_json
+from flids.attacks.assembler import OverlaySpec, assemble_overlay, assemble_overlays, iter_assembled_chunks, strict_json
 from flids.attacks.schemas import TABLE_NAMES, validate_table
 from flids.attacks.windows import label_windows
 
@@ -95,17 +95,18 @@ def _bit_digest(table: pd.DataFrame) -> str:
     return digest.hexdigest()
 
 
-def test_synthetic_assembler_matches_pre_refactor_bit_golden() -> None:
+def test_synthetic_assembler_matches_exact_id_and_selection_golden() -> None:
     tables = assemble_overlay(frame(), overlay(), 7, split_of)
     actual = {name: _bit_digest(getattr(tables, name)) for name in TABLE_NAMES}
     expected = {
-        "attacked_rows": "4ed0feb244e3ff25bc892fb64b9463c60672d9f15c2ebc02a261d995e0ff1be7",
-        "step_labels": "e8218bc941b45e3df3e4e51097a079f585c576b0348a44cced865e825098ef54",
-        "episodes": "bd2f66b6987843d6106e303f7d572355995eedec443dd2d0a8d0c50ee3a12527",
-        "rejected_candidates": "0ff6f757c74222392c0d6b3be92792c5e048aa0744eab87d2472577ed34e8997",
-        "modified_row_provenance": "435d18231dd685cc796422cffc810cc08a626e70addce0870ef8eeebaa77710a",
-        "windows": "22210de2f538a3ebc39fe71c6c9f97813b93c8b4f2a30bd71d2842e600fc0719",
+        "attacked_rows": "8e15d3b1d32be4650cface5c65c3c3a00365a545811d404ef3fef35147b17150",
+        "step_labels": "0c7def3ca9124954bd792f2ae918f8d4b35b46b140b9b659f6a73759316b21a6",
+        "episodes": "c3e95be3400228b341d3b3473a132d37ba66770166761dc2523f27d363be4b13",
+        "rejected_candidates": "661ed2c232d2f74bb12f741e3804f9621b2fc74bee6819a4c5658623c8b70146",
+        "modified_row_provenance": "d3c1f3a1567bccabb24586a81fa57d570029e623fe256b066beef7b33c63bdcc",
+        "windows": "78f0be52a10c18ee20519e39d4b89269d858d8705a20464ee2a7aad20b1de385",
         "segments": "d95b69b55910cc3ca2eb161d4af0b038be77acf3d0a9088a695cd5bf6caae00a",
+        "overlay_selections": "512237bed2cae411f7f7a778eb0f3c7c5795ab8fe6507663e6a031a330a7c1e0",
     }
     assert actual == expected
 
@@ -241,6 +242,64 @@ def test_same_seed_uses_independent_selection_for_overlay_keys() -> None:
         split_of,
     )
     assert not constant.segments.selection_u.equals(gaussian.segments.selection_u)
+
+
+def test_episode_ids_are_exact_in_nullable_row_and_step_tables() -> None:
+    tables = assemble_overlay(frame(), overlay(tau=1.0), 7, split_of)
+    episode_ids = set(tables.episodes.episode_id.astype("int64"))
+    row_ids = set(tables.attacked_rows.episode_id.dropna().astype("int64"))
+    step_ids = set(tables.step_labels.episode_id.dropna().astype("int64"))
+    assert row_ids == step_ids == episode_ids
+
+
+def test_multi_overlay_selection_is_recorded_and_conflicts_are_resolved() -> None:
+    source = frame()
+    constant = overlay(tau=1.0)
+    gaussian = overlay(
+        attack_family="random_gaussian_deviation", subtype="gaussian",
+        magnitude_m=None, sigma_m=500.0, tau=1.0,
+    )
+    merged = assemble_overlays(source, [gaussian, constant], 23, split_of)
+    reordered = assemble_overlays(source, [constant, gaussian], 23, split_of)
+    chunked = assemble_overlays(source, [gaussian, constant], 23, split_of, max_segments_per_chunk=1)
+    shuffled = assemble_overlays(source.sample(frac=1.0, random_state=91), [constant, gaussian], 23, split_of)
+    assert set(merged.overlay_selections.columns) == {
+        "icao24", "segment_id", "split", "overlay_key", "attack_family", "tier",
+        "n_eligible_starts", "eligible", "selection_u", "tau_requested", "selected", "chosen",
+    }
+    pd.testing.assert_frame_equal(merged.overlay_selections, reordered.overlay_selections)
+    for name in TABLE_NAMES:
+        pd.testing.assert_frame_equal(getattr(merged, name), getattr(chunked, name))
+    pd.testing.assert_frame_equal(merged.overlay_selections, shuffled.overlay_selections)
+    segment_count = source[["icao24", "segment_id"]].drop_duplicates().shape[0]
+    assert len(merged.overlay_selections) == 2 * segment_count
+    assert merged.segments.selected.sum() == merged.episodes.groupby(["icao24", "segment_id"]).ngroups
+    assert merged.episodes.groupby(["icao24", "segment_id"]).attack_family.nunique().max() == 1
+    assert merged.episodes.overlay_key.isin([constant.overlay_key, gaussian.overlay_key]).all()
+    assert merged.rejected_candidates.overlay_key.isin([constant.overlay_key, gaussian.overlay_key]).all()
+    conflicts = merged.rejected_candidates[merged.rejected_candidates.reason == "overlay_conflict"]
+    assert not conflicts.empty
+    assert conflicts.stage.eq("placement").all()
+    for selection in merged.overlay_selections.itertuples():
+        if not selection.selected:
+            continue
+        accepted = merged.episodes[
+            (merged.episodes.icao24 == selection.icao24) &
+            (merged.episodes.segment_id == selection.segment_id) &
+            (merged.episodes.attack_family == selection.attack_family) &
+            (merged.episodes.tier == selection.tier)
+        ]
+        rejected = merged.rejected_candidates[
+            (merged.rejected_candidates.icao24 == selection.icao24) &
+            (merged.rejected_candidates.segment_id == selection.segment_id) &
+            (merged.rejected_candidates.attack_family == selection.attack_family) &
+            (merged.rejected_candidates.tier == selection.tier)
+        ]
+        assert len(accepted) + len(rejected) == 1
+    ids = list(merged.episodes.episode_id.astype("int64")) + list(merged.rejected_candidates.candidate_id.astype("int64"))
+    assert len(ids) == len(set(ids))
+    for name in TABLE_NAMES:
+        validate_table(getattr(merged, name), name)
 
 
 def test_missing_contact_lag_is_preserved_with_its_missing_flag() -> None:

@@ -84,6 +84,7 @@ STEP_LABELS_SCHEMA: dict[str, ColumnSpec] = {
 
 EPISODES_SCHEMA: dict[str, ColumnSpec] = {
     "episode_id": ColumnSpec("int64"),
+    "overlay_key": ColumnSpec("str"),
     "icao24": ColumnSpec("str"),
     "segment_id": ColumnSpec("int32"),
     "split": ColumnSpec("str"),
@@ -121,6 +122,7 @@ EPISODES_SCHEMA: dict[str, ColumnSpec] = {
 
 REJECTED_CANDIDATES_SCHEMA: dict[str, ColumnSpec] = {
     "candidate_id": ColumnSpec("int64"),
+    "overlay_key": ColumnSpec("str"),
     "icao24": ColumnSpec("str"),
     "segment_id": ColumnSpec("int32"),
     "split": ColumnSpec("str"),
@@ -173,6 +175,21 @@ SEGMENTS_SCHEMA: dict[str, ColumnSpec] = {
     "selected": ColumnSpec("bool"),
 }
 
+OVERLAY_SELECTIONS_SCHEMA: dict[str, ColumnSpec] = {
+    "icao24": ColumnSpec("str"),
+    "segment_id": ColumnSpec("int32"),
+    "split": ColumnSpec("str"),
+    "overlay_key": ColumnSpec("str"),
+    "attack_family": ColumnSpec("str"),
+    "tier": ColumnSpec("str"),
+    "n_eligible_starts": ColumnSpec("int32"),
+    "eligible": ColumnSpec("bool"),
+    "selection_u": ColumnSpec("float64"),
+    "tau_requested": ColumnSpec("float64"),
+    "selected": ColumnSpec("bool"),
+    "chosen": ColumnSpec("bool"),
+}
+
 TABLES: dict[str, dict[str, ColumnSpec]] = {
     "attacked_rows": ATTACKED_ROWS_SCHEMA,
     "step_labels": STEP_LABELS_SCHEMA,
@@ -181,6 +198,7 @@ TABLES: dict[str, dict[str, ColumnSpec]] = {
     "modified_row_provenance": MODIFIED_ROW_PROVENANCE_SCHEMA,
     "windows": WINDOWS_SCHEMA,
     "segments": SEGMENTS_SCHEMA,
+    "overlay_selections": OVERLAY_SELECTIONS_SCHEMA,
 }
 TABLE_NAMES: tuple[str, ...] = tuple(TABLES)
 

@@ -5,16 +5,16 @@ import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Mapping, Sequence
 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .assembler import OverlaySpec, iter_assembled_chunks
+from .assembler import OverlaySpec, iter_assembled_multi_chunks
 from .config import UnapprovedConfigError, require_approved
 from .fingerprint import content_fingerprint, schema_fingerprint
-from .manifest import build_manifest, git_dirty, write_manifest
+from .manifest import build_manifest, git_dirty, library_versions, write_manifest
 from .plausibility import build_plausibility_report
 from .schemas import TABLE_NAMES
 
@@ -33,7 +33,7 @@ def _sha256_file(path: Path) -> str:
 
 def write_overlay_tables(
     df: pd.DataFrame,
-    overlay: OverlaySpec,
+    overlay: OverlaySpec | Sequence[OverlaySpec],
     global_seed: int,
     split_of: Callable[[str], str],
     config: Mapping,
@@ -43,7 +43,7 @@ def write_overlay_tables(
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
 ) -> dict:
-    """Write all seven tables in chunks, refusing unapproved/dirty/overwrite.
+    """Write all eight tables in chunks, refusing unapproved/dirty/overwrite.
 
     The caller supplies an already-loaded config mapping so this library module
     never reads YAML. The CLI owns config parsing and approval validation.
@@ -61,6 +61,10 @@ def write_overlay_tables(
         raise WriterError(f"refusing to overwrite existing output directory: {target}")
     if max_segments_per_chunk < 1:
         raise ValueError("max_segments_per_chunk must be at least one")
+    overlays = (overlay,) if isinstance(overlay, OverlaySpec) else tuple(overlay)
+    overlays = tuple(sorted(overlays, key=lambda item: item.overlay_key))
+    if not overlays or len({item.overlay_key for item in overlays}) != len(overlays):
+        raise WriterError("at least one overlay with a unique overlay_key is required")
 
     try:
         target.mkdir(parents=True, exist_ok=False)
@@ -69,20 +73,18 @@ def write_overlay_tables(
 
     writers = {}
     row_counts = {name: 0 for name in TABLE_NAMES}
-    selection = {
-        "eligible_segments": 0,
-        "selected_segments": 0,
-        "realized_eta": None,
-        "attack_rows": 0,
-        "effective_rows": 0,
-        "accepted_episodes": 0,
-        "rejected_by_reason": {},
-    }
+    selection = {str(item.overlay_key): {
+        "eligible_segments": 0, "selected_segments": 0, "chosen_segments": 0,
+        "attack_rows": 0, "effective_rows": 0, "accepted_episodes": 0,
+        "rejected_by_reason": {}, "attack_family": item.attack_family,
+        "tier": item.tier, "tau_requested": item.tau,
+    } for item in overlays}
+    selection["_merged"] = {"attack_rows": 0, "effective_rows": 0, "accepted_episodes": 0, "rejected_by_reason": {}}
     validator_results = {name: "passed" for name in TABLE_NAMES}
     plausibility_episodes = []
     unavailable_checks = []
     try:
-        for chunk in iter_assembled_chunks(df, overlay, global_seed, split_of, max_segments_per_chunk=max_segments_per_chunk):
+        for chunk in iter_assembled_multi_chunks(df, overlays, global_seed, split_of, max_segments_per_chunk=max_segments_per_chunk):
             for name in TABLE_NAMES:
                 frame = getattr(chunk, name)
                 table = pa.Table.from_pandas(frame, preserve_index=False)
@@ -95,17 +97,37 @@ def write_overlay_tables(
                     writers[name].write_table(table)
                 row_counts[name] += table.num_rows
 
-            selection["eligible_segments"] += int(chunk.segments.eligible.sum())
-            selection["selected_segments"] += int(chunk.segments.selected.sum())
-            selection["attack_rows"] += int(chunk.attacked_rows.is_attack_row.sum())
-            selection["effective_rows"] += int((chunk.attacked_rows.ramp_multiplier >= 0.5).sum())
-            selection["accepted_episodes"] += int(len(chunk.episodes))
+            for key, group in chunk.overlay_selections.groupby("overlay_key", sort=False):
+                item = selection[str(key)]
+                item["eligible_segments"] += int(group.eligible.sum())
+                item["selected_segments"] += int(group.selected.sum())
+                item["chosen_segments"] += int(group.chosen.sum())
+            merged = selection["_merged"]
+            merged["attack_rows"] += int(chunk.attacked_rows.is_attack_row.sum())
+            merged["effective_rows"] += int((chunk.attacked_rows.ramp_multiplier >= 0.5).sum())
+            merged["accepted_episodes"] += int(len(chunk.episodes))
+            for item in overlays:
+                family = item.attack_family
+                item_rows = chunk.attacked_rows[
+                    (chunk.attacked_rows.attack_family == family) &
+                    (chunk.attacked_rows.tier == item.tier) & chunk.attacked_rows.is_attack_row
+                ]
+                selection[str(item.overlay_key)]["attack_rows"] += int(len(item_rows))
+                selection[str(item.overlay_key)]["effective_rows"] += int((item_rows.ramp_multiplier >= 0.5).sum())
+                item_rejections = chunk.rejected_candidates[
+                    chunk.rejected_candidates.overlay_key == item.overlay_key
+                ]
+                overlay_counts = selection[str(item.overlay_key)]
+                overlay_counts["accepted_episodes"] += int((chunk.episodes.overlay_key == item.overlay_key).sum())
+                if not item_rejections.empty:
+                    for reason, count in item_rejections.reason.value_counts().items():
+                        overlay_counts["rejected_by_reason"][str(reason)] = overlay_counts["rejected_by_reason"].get(str(reason), 0) + int(count)
             partial_report = build_plausibility_report(chunk.attacked_rows, chunk.episodes, chunk.rejected_candidates)
             plausibility_episodes.extend(partial_report["episodes"])
             unavailable_checks = partial_report["unavailable_checks"]
             if not chunk.rejected_candidates.empty:
                 for reason, count in chunk.rejected_candidates.reason.value_counts().items():
-                    selection["rejected_by_reason"][str(reason)] = selection["rejected_by_reason"].get(str(reason), 0) + int(count)
+                    merged["rejected_by_reason"][str(reason)] = merged["rejected_by_reason"].get(str(reason), 0) + int(count)
     finally:
         for parquet_writer in writers.values():
             parquet_writer.close()
@@ -114,7 +136,7 @@ def write_overlay_tables(
     for name in TABLE_NAMES:
         path = target / f"{name}.parquet"
         if not path.exists():
-            empty = pa.Table.from_pandas(getattr(next(iter_assembled_chunks(df.iloc[:0], overlay, global_seed, split_of)), name), preserve_index=False)
+            empty = pa.Table.from_pandas(getattr(next(iter_assembled_multi_chunks(df.iloc[:0], overlays, global_seed, split_of)), name), preserve_index=False)
             pq.write_table(empty, path, compression="zstd")
 
     plausibility_report = {
@@ -126,6 +148,17 @@ def write_overlay_tables(
     }
     (target / "plausibility_report.json").write_text(
         json.dumps(plausibility_report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+    run_configuration = {
+        "run_config_version": 1,
+        "stage1_config": dict(config),
+        "global_seed": int(global_seed),
+        "overlay_specs": [asdict(item) for item in overlays],
+        "library_versions": library_versions(),
+    }
+    (target / "config.json").write_text(
+        json.dumps(run_configuration, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
     input_fingerprints = {
@@ -141,17 +174,16 @@ def write_overlay_tables(
     )
     manifest.update({
         "output_directory": str(target),
-        "overlay_merge_order": [overlay.overlay_key],
-        "overlay_merge_scope": "single_overlay_per_run; cross_overlay_conflicts_not_resolved",
+        "overlay_merge_order": [item.overlay_key for item in overlays],
+        "overlay_merge_scope": "lexicographic_overlay_key; at_most_one_selected_overlay_per_segment; conflicts_logged_as_overlay_conflict",
         "overlays": {
-            str(overlay.overlay_key): {
-                **selection,
-                "realized_eta": selection["selected_segments"] / selection["eligible_segments"] if selection["eligible_segments"] else 0.0,
-                "attack_family": overlay.attack_family,
-                "tier": overlay.tier,
-                "tau_requested": overlay.tau,
-            }
+            str(item.overlay_key): {
+                **selection[str(item.overlay_key)],
+                "realized_tau": (selection[str(item.overlay_key)]["selected_segments"] / selection[str(item.overlay_key)]["eligible_segments"] if selection[str(item.overlay_key)]["eligible_segments"] else 0.0),
+                "realized_chosen_fraction_of_eligible": (selection[str(item.overlay_key)]["chosen_segments"] / selection[str(item.overlay_key)]["eligible_segments"] if selection[str(item.overlay_key)]["eligible_segments"] else 0.0),
+            } for item in overlays
         },
+        "merged_totals": selection["_merged"],
         "tables": {
             name: {
                 "row_count": row_counts[name],
@@ -165,7 +197,7 @@ def write_overlay_tables(
         },
         "physical_plausibility_report": "plausibility_report.json",
         "unavailable_checks": unavailable_checks,
-        "overlay_spec": asdict(overlay),
+        "overlay_specs": [asdict(item) for item in overlays],
     })
     write_manifest(target / "manifest.json", manifest)
     return manifest

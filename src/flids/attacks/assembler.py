@@ -56,7 +56,7 @@ class OverlaySpec:
 class AssembledTables:
     attacked_rows: pd.DataFrame; step_labels: pd.DataFrame; episodes: pd.DataFrame
     rejected_candidates: pd.DataFrame; modified_row_provenance: pd.DataFrame
-    windows: pd.DataFrame; segments: pd.DataFrame
+    windows: pd.DataFrame; segments: pd.DataFrame; overlay_selections: pd.DataFrame
 
 
 def _cell(lat, lon, degrees):
@@ -75,8 +75,8 @@ def _finite_median(values) -> float:
     return float(np.median(finite)) if finite.size else float("nan")
 
 
-def _episode_id(icao24, segment_id, index):
-    value = int.from_bytes(hashlib.sha256(f"{icao24}|{segment_id}|{index}".encode()).digest()[:8], "big")
+def _episode_id(icao24, segment_id, index, overlay_key):
+    value = int.from_bytes(hashlib.sha256(f"{overlay_key}|{icao24}|{segment_id}|{index}".encode()).digest()[:8], "big")
     return value & ((1 << 63) - 1)
 
 
@@ -98,16 +98,11 @@ def _table_from_columns(name, columns):
     return out[list(schema)]
 
 
-def _legacy_nullable_episode_ids(values):
-    """Preserve the pre-vectorization float64 coercion of nullable row IDs.
-
-    The old record-to-DataFrame path first represented ``None``-containing
-    int63 episode IDs as float64, which can round values above 2**53. Stage B
-    keeps that serialized behavior bit-identical; changing it needs a separate
-    artifact-version decision.
-    """
-    as_float = np.where(values >= 0, values.astype(np.float64), np.nan)
-    return pd.Series(as_float).astype("Int64").array
+def _nullable_episode_ids(values):
+    """Return exact nullable int64 IDs without lossy float64 coercion."""
+    result = pd.array(values, dtype="Int64")
+    result[np.asarray(values) < 0] = pd.NA
+    return result
 
 
 def _nullable_source_ids(values):
@@ -145,7 +140,7 @@ def _assemble_keyed(
     grid_degrees: float,
 ) -> AssembledTables:
     """Assemble already-keyed rows; row/step tables are built column-wise."""
-    attacked=[]; labels=[]; episodes=[]; rejected=[]; provenance=[]; windows=[]; segments=[]
+    attacked=[]; labels=[]; episodes=[]; rejected=[]; provenance=[]; windows=[]; segments=[]; overlay_selections=[]
     n_rows = rows_for_duration(overlay.duration_seconds)
     for (icao24, segment_id), seg in keyed.groupby(["icao24", "segment_id"], sort=True):
         seg = seg.reset_index(drop=True)
@@ -168,6 +163,7 @@ def _assemble_keyed(
         u = float(overlay_selection_rng(global_seed, icao24, segment_id, overlay.overlay_key).random())
         selected = eligible and u < overlay.tau
         segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(_finite_median(seg.lat), _finite_median(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
+        overlay_selections.append(dict(icao24=icao24,segment_id=segment_id,split=split,overlay_key=overlay.overlay_key,attack_family=overlay.attack_family,tier=overlay.tier,n_eligible_starts=len(starts),eligible=eligible,selection_u=u,tau_requested=overlay.tau,selected=selected,chosen=selected))
 
         multipliers = np.zeros(len(seg), dtype=np.float64)
         positions = np.full(len(seg), "none", dtype=object)
@@ -183,16 +179,16 @@ def _assemble_keyed(
         if selected:
             accepted, failures = place_episodes(starts, times, overlay.duration_seconds, overlay.episodes_per_segment, lambda k: placement_rng(global_seed, icao24, segment_id, k), max_per_segment=3, min_gap_seconds=overlay.min_gap_seconds)
             for k, reason in failures:
-                rejected.append(dict(candidate_id=_episode_id(icao24,segment_id,k),icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,requested_start_row_offset=-1,requested_n_rows=n_rows,stage="placement",reason=reason,details_json="{}"))
+                rejected.append(dict(candidate_id=_episode_id(icao24,segment_id,k,overlay.overlay_key),overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,requested_start_row_offset=-1,requested_n_rows=n_rows,stage="placement",reason=reason,details_json="{}"))
             for k,start,count in accepted:
                 prng=parameter_rng(global_seed,icao24,segment_id,k)
                 bearing=float(prng.uniform(0,360)) if overlay.attack_family in HORIZONTAL_FAMILIES else None
                 shift=(1 if prng.integers(2) else -1)*(overlay.shift_m or 0) if overlay.attack_family=="altitude_constant_deviation" else overlay.shift_m
                 spec=EpisodeSpec(overlay.attack_family,overlay.tier,overlay.subtype,overlay.altitude_variant,overlay.onset_mode,overlay.ramp_rows,overlay.magnitude_m,bearing,overlay.sigma_m,overlay.kappa,overlay.per_step_sigma_m,shift,overlay.replay_delay_s,overlay.replay_tolerance_s)
                 result=build_episode({f:seg[f].to_numpy(float) for f in FEATURE_FIELDS},times,row_ok,sources,start,count,spec,episode_rng(global_seed,icao24,segment_id,k))
-                eid=_episode_id(icao24,segment_id,k)
+                eid=_episode_id(icao24,segment_id,k,overlay.overlay_key)
                 if not result.accepted:
-                    rejected.append(dict(candidate_id=eid,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,requested_start_row_offset=start,requested_n_rows=count,stage="build",reason=result.reason,details_json=json.dumps(result.summary,sort_keys=True)))
+                    rejected.append(dict(candidate_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,requested_start_row_offset=start,requested_n_rows=count,stage="build",reason=result.reason,details_json=json.dumps(result.summary,sort_keys=True)))
                     continue
                 sl=slice(start,start+count)
                 multipliers[sl]=result.multipliers
@@ -209,7 +205,7 @@ def _assemble_keyed(
                     active_offsets=np.arange(start,start+count,dtype=np.int64)[active_delays]
                     replay_source_ids[active_offsets]=source_ids[sources[active_offsets]]
                     replay_delays[active_offsets]=result.delays[active_delays]
-                episodes.append(dict(episode_id=eid,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
+                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 changed_by_row = result.changed_fields
                 changed_indices = np.fromiter((i for i, fields in enumerate(changed_by_row) if fields), dtype=np.int64)
                 for offset in changed_indices:
@@ -231,7 +227,7 @@ def _assemble_keyed(
             "contact_lag_missing": seg.contact_lag_missing.to_numpy(dtype=bool),
             "is_attack_row": attack_mask,
             "attack_family": episode_family, "attack_subtype": episode_subtype, "tier": episode_tier,
-            "episode_id": _legacy_nullable_episode_ids(episode_ids),
+            "episode_id": _nullable_episode_ids(episode_ids),
             "episode_position": positions, "ramp_multiplier": multipliers.astype(np.float32),
             "replay_source_row_id": _nullable_source_ids(replay_source_ids),
             "replay_delay_seconds": replay_delays.astype(np.float32),
@@ -240,7 +236,7 @@ def _assemble_keyed(
 
         label_columns = {
             "source_row_id": source_ids,
-            "episode_id": _legacy_nullable_episode_ids(episode_ids),
+            "episode_id": _nullable_episode_ids(episode_ids),
             "is_attack_row": attack_mask, "attack_family": episode_family,
             "attack_subtype": episode_subtype, "tier": episode_tier,
             "episode_position": positions, "ramp_multiplier": multipliers.astype(np.float32),
@@ -260,6 +256,7 @@ def _assemble_keyed(
         "modified_row_provenance": _table("modified_row_provenance", provenance),
         "windows": _table("windows", windows),
         "segments": _table("segments", segments),
+        "overlay_selections": _table("overlay_selections", overlay_selections),
     }
     out = AssembledTables(*(frames[name] for name in TABLE_NAMES))
     for name in TABLE_NAMES:
@@ -303,7 +300,7 @@ def assemble_overlay(
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
 ) -> AssembledTables:
-    """Assemble all seven validated tables without reading config or writing files.
+    """Assemble one validated overlay without reading config or writing files.
 
     Grid IDs use ``floor((median_lat+90)/degrees):floor((median_lon+180)/degrees)``.
     ``tau`` is Bernoulli selection probability over eligible aircraft-segments.
@@ -315,4 +312,165 @@ def assemble_overlay(
     for name in TABLE_NAMES:
         parts = [getattr(chunk,name) for chunk in chunks]
         frames[name] = pd.concat(parts,ignore_index=True) if parts else empty_table(name)
+    return AssembledTables(*(frames[name] for name in TABLE_NAMES))
+
+
+def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
+    """Resolve selected-overlay conflicts in sorted overlay-key order.
+
+    ``segments`` is the final merged summary. Its selection detail describes
+    the winning overlay when one was selected, otherwise the first eligible
+    overlay (or the lexicographically first overlay if none are eligible).
+    Complete per-overlay Bernoulli evidence lives in ``overlay_selections``.
+    """
+    overlay_order = sorted(overlays, key=lambda item: item.overlay_key)
+    by_key = {item.overlay_key: tables for item, tables in zip(overlays, per_overlay)}
+    selection_frames = [by_key[item.overlay_key].overlay_selections for item in overlay_order]
+    all_selections = pd.concat(selection_frames, ignore_index=True)
+    all_selections = all_selections.sort_values(["icao24", "segment_id", "overlay_key"], kind="mergesort").reset_index(drop=True)
+    segment_keys = all_selections[["icao24", "segment_id"]].drop_duplicates().to_records(index=False)
+
+    chosen_keys: dict[tuple[str, int], str | None] = {}
+    representative_keys: dict[tuple[str, int], str] = {}
+    for icao24, segment_id in segment_keys:
+        key = (str(icao24), int(segment_id))
+        group = all_selections[(all_selections.icao24 == key[0]) & (all_selections.segment_id == key[1])]
+        selected = group[group.selected]
+        winner = str(selected.iloc[0].overlay_key) if not selected.empty else None
+        chosen_keys[key] = winner
+        if winner is not None:
+            representative_keys[key] = winner
+        else:
+            eligible = group[group.eligible]
+            representative_keys[key] = str((eligible.iloc[0] if not eligible.empty else group.iloc[0]).overlay_key)
+    all_selections["chosen"] = [chosen_keys[(str(row.icao24), int(row.segment_id))] == row.overlay_key for row in all_selections.itertuples()]
+
+    output_parts = {name: [] for name in TABLE_NAMES if name != "overlay_selections"}
+    for key, winner_key in chosen_keys.items():
+        selected_key = winner_key or representative_keys[key]
+        source_tables = by_key[selected_key]
+        for name in output_parts:
+            frame = getattr(source_tables, name)
+            if name == "step_labels":
+                segment_row_ids = set(source_tables.attacked_rows.loc[
+                    (source_tables.attacked_rows.icao24 == key[0]) &
+                    (source_tables.attacked_rows.segment_id == key[1]), "source_row_id"
+                ])
+                mask = frame.source_row_id.isin(segment_row_ids)
+            elif name in {"attacked_rows", "episodes", "rejected_candidates", "windows"}:
+                mask = (frame.icao24 == key[0]) & (frame.segment_id == key[1])
+            elif name == "modified_row_provenance":
+                row_ids = set(source_tables.attacked_rows.loc[
+                    (source_tables.attacked_rows.icao24 == key[0]) &
+                    (source_tables.attacked_rows.segment_id == key[1]), "source_row_id"
+                ])
+                mask = frame.source_row_id.isin(row_ids)
+            else:
+                mask = (frame.icao24 == key[0]) & (frame.segment_id == key[1])
+            output_parts[name].append(frame.loc[mask])
+
+        # Keep per-request accounting for every selected overlay that lost the
+        # deterministic merge conflict. No placement/build attempt is made.
+        if winner_key is not None:
+            for overlay in overlay_order:
+                if overlay.overlay_key == winner_key:
+                    continue
+                selection = all_selections[
+                    (all_selections.icao24 == key[0]) &
+                    (all_selections.segment_id == key[1]) &
+                    (all_selections.overlay_key == overlay.overlay_key)
+                ].iloc[0]
+                if not selection.selected:
+                    continue
+                base = by_key[overlay.overlay_key].segments
+                segment = base[(base.icao24 == key[0]) & (base.segment_id == key[1])].iloc[0]
+                n_rows = rows_for_duration(overlay.duration_seconds)
+                output_parts["rejected_candidates"].append(_table(
+                    "rejected_candidates",
+                    [dict(candidate_id=_episode_id(key[0], key[1], request_index, overlay.overlay_key),
+                          overlay_key=overlay.overlay_key,
+                          icao24=key[0], segment_id=key[1], split=segment.split,
+                          attack_family=overlay.attack_family,
+                          attack_subtype=overlay.subtype or overlay.attack_family,
+                          tier=overlay.tier, requested_start_row_offset=-1,
+                          requested_n_rows=n_rows, stage="placement", reason="overlay_conflict",
+                          details_json=strict_json({"winner_overlay_key": winner_key}))
+                     for request_index in range(overlay.episodes_per_segment)]
+                ))
+
+    frames = {}
+    for name, parts in output_parts.items():
+        frame = pd.concat(parts, ignore_index=True) if parts else empty_table(name)
+        sort_columns = {
+            "attacked_rows": ["source_row_id"], "step_labels": ["source_row_id"],
+            "episodes": ["icao24", "segment_id", "start_row_offset"],
+            "rejected_candidates": ["icao24", "segment_id", "candidate_id"],
+            "modified_row_provenance": ["source_row_id"],
+            "windows": ["icao24", "segment_id", "start_offset"],
+            "segments": ["icao24", "segment_id"],
+        }[name]
+        frames[name] = frame.sort_values(sort_columns, kind="mergesort").reset_index(drop=True) if not frame.empty else empty_table(name)
+
+    # Build one merged segment summary. The exact evidence for each overlay is
+    # in the eighth table, so a summary draw never stands in for all overlays.
+    summaries = []
+    for key, winner_key in chosen_keys.items():
+        representative = representative_keys[key]
+        row = by_key[representative].segments
+        row = row[(row.icao24 == key[0]) & (row.segment_id == key[1])].iloc[0].to_dict()
+        eligibility_mask = (all_selections.icao24 == key[0]) & (all_selections.segment_id == key[1])
+        row["eligible"] = bool(all_selections.loc[eligibility_mask, "eligible"].any())
+        row["selected"] = winner_key is not None
+        summaries.append(row)
+    frames["segments"] = _table("segments", summaries)
+    frames["overlay_selections"] = all_selections
+    out = AssembledTables(*(frames[name] for name in TABLE_NAMES))
+    for name in TABLE_NAMES:
+        validate_table(getattr(out, name), name)
+    return out
+
+
+def iter_assembled_multi_chunks(
+    df: pd.DataFrame,
+    overlays: tuple[OverlaySpec, ...] | list[OverlaySpec],
+    global_seed: int,
+    split_of: Callable[[str], str],
+    grid_degrees: float = 5.0,
+    max_segments_per_chunk: int = 64,
+):
+    """Yield bounded merged chunks, enforcing the approved one-overlay rule."""
+    if not overlays:
+        raise ValueError("at least one overlay is required")
+    keys = [overlay.overlay_key for overlay in overlays]
+    if len(set(keys)) != len(keys):
+        raise ValueError("overlay keys must be unique")
+    if max_segments_per_chunk < 1:
+        raise ValueError("max_segments_per_chunk must be at least one")
+    keyed = add_natural_keys(df).sort_values(["icao24", "segment_id", "time"], kind="mergesort").reset_index(drop=True)
+    group_start = keyed[["icao24", "segment_id"]].ne(keyed[["icao24", "segment_id"]].shift()).any(axis=1).to_numpy().nonzero()[0]
+    if not len(group_start):
+        yield _merge_overlay_chunk([_assemble_keyed(keyed, overlay, global_seed, split_of, grid_degrees) for overlay in overlays], overlays)
+        return
+    bounds = np.append(group_start, len(keyed))
+    for first_group in range(0, len(group_start), max_segments_per_chunk):
+        last_group = min(first_group + max_segments_per_chunk, len(group_start))
+        chunk = keyed.iloc[bounds[first_group]:bounds[last_group]]
+        pieces = [_assemble_keyed(chunk, overlay, global_seed, split_of, grid_degrees) for overlay in overlays]
+        yield _merge_overlay_chunk(pieces, overlays)
+
+
+def assemble_overlays(
+    df: pd.DataFrame,
+    overlays: tuple[OverlaySpec, ...] | list[OverlaySpec],
+    global_seed: int,
+    split_of: Callable[[str], str],
+    grid_degrees: float = 5.0,
+    max_segments_per_chunk: int = 64,
+) -> AssembledTables:
+    """Assemble multiple overlays with lexicographic conflict resolution."""
+    chunks = list(iter_assembled_multi_chunks(df, overlays, global_seed, split_of, grid_degrees, max_segments_per_chunk))
+    frames = {}
+    for name in TABLE_NAMES:
+        parts = [getattr(chunk, name) for chunk in chunks]
+        frames[name] = pd.concat(parts, ignore_index=True) if parts else empty_table(name)
     return AssembledTables(*(frames[name] for name in TABLE_NAMES))

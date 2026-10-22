@@ -1,4 +1,4 @@
-"""Stage 1 single-overlay generation CLI. Do not run before the human gate."""
+"""Stage 1 overlay generation CLI. Do not run before the human gate."""
 from __future__ import annotations
 
 import argparse
@@ -32,7 +32,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "attack_v3_stage1.yaml")
     parser.add_argument("--out", type=Path, required=True, help="new run directory under data/attack_generation_v3")
     parser.add_argument("--dry-run", action="store_true", help="print counts only; write nothing")
-    parser.add_argument("--family", choices=FAMILIES, default="constant_deviation")
+    parser.add_argument("--family", choices=FAMILIES, action="append", default=None,
+                        help="overlay family; repeat to select several (default: all seven Stage 1 families)")
     parser.add_argument("--tier", choices=("subtle", "moderate", "blatant", "gross_positive_control"), default="moderate")
     parser.add_argument("--tau", type=float, default=None)
     parser.add_argument("--duration-seconds", type=float, default=None)
@@ -46,15 +47,16 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config_path = args.config.resolve()
     config = load_approved_config(config_path)
-    overlay = overlay_from_config(
+    families = args.family or list(FAMILIES)
+    overlays = tuple(overlay_from_config(
         config,
-        args.family,
+        family,
         args.tier,
         tau=args.tau,
         duration_seconds=args.duration_seconds,
         altitude_variant=args.altitude_variant,
         episodes_per_segment=args.episodes_per_segment,
-    )
+    ) for family in families)
     input_path = Path(config["input"]["cleaned_table"])
     if not input_path.is_absolute():
         input_path = ROOT / input_path
@@ -73,19 +75,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         summary = dry_run_summary(
             frame,
-            overlay,
+            overlays,
             args.seed,
             split_map.split_of,
             max_segments_per_chunk=args.segments_per_chunk,
         )
-        summary["overlay_key"] = overlay.overlay_key
+        summary["overlay_merge_order"] = [overlay.overlay_key for overlay in overlays]
         summary["seed"] = args.seed
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 0
 
     manifest = write_overlay_tables(
         frame,
-        overlay,
+        overlays,
         args.seed,
         split_map.split_of,
         config,

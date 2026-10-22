@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4e Stage C gate check.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-22, Session 4f Stage B resolution.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,7 +9,8 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 Stage B is in progress. The attack foundation, seven-family in-memory
+Phase 1 Stage B is complete; Stage C seed-42 generation is authorized after the
+required clean commit. The attack foundation, seven-family in-memory
 assembler, schemas, and tests are implemented (D-020--D-028); Gate 0 is
 approved. Stage 1 parameter values were explicitly approved by the human in
 Session 4d (D-029); `configs/attack_v3_stage1.yaml` now has `status: approved`.
@@ -18,16 +19,14 @@ Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
 lexicographic overlay-key order; `tau_requested` is the eligible-segment
 Bernoulli probability and is explicitly distinct from paper Eq. 10 eta. Stage A
-approval sheet and read-only validation are complete. Stage B is in progress:
-vectorized/whole-segment-chunk assembly, a guarded single-overlay Parquet writer,
-manifest, descriptive plausibility report, single-overlay CLI, and SVG plot
-helper are implemented and covered by synthetic tests. No dataset has been
-written. The golden regression exposed lossy float64 coercion of some nullable
-row/step episode IDs in legacy output. The human reviewed Stage B and authorized
-the next stage, but Stage C is held: `.claude/` is unrelated and untracked, and
-D-030's multi-overlay selection representation and episode-ID consistency
-questions remain unresolved. Gate 1 has not been reviewed; Phase 2 and later
-phases must wait.
+approval sheet and read-only validation are complete. Stage B now has
+vectorized/whole-segment-chunk multi-overlay assembly, lexicographic conflict
+resolution, a per-overlay selection-evidence table, a guarded Parquet writer,
+manifest/config, descriptive plausibility report, multi-family CLI, and SVG
+plot helper. D-031 corrects nullable episode IDs and records the new eight-table
+output. No dataset has been written in Stage C. The worktree was clean when
+checked after `.claude/` was handled. Stage C may now run for seed 42; Gate 1
+remains pending and Phase 2/later phases must wait for human review.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

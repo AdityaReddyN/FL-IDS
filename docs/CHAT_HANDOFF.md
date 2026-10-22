@@ -52,19 +52,16 @@ training data only, and never tune on test data.
   scientific result, and no parameters were tuned.
 - The human approved Draft 4 parameter values in Session 4d (D-029), and the
   live config is now `status: approved`.
-- Stage B is partially implemented: vectorized and chunked assembler output,
-  a single-overlay guarded Parquet writer and manifest, descriptive
-  plausibility report, single-overlay CLI/dry-run, and SVG sanity-plot helper.
-  No generated v3 dataset exists. No Phase 1 generation or training has run.
-- Stage B is not complete: multi-overlay conflict resolution and the merged
-  `segments` selection schema need a human decision. The golden test also
-  exposed legacy float64 rounding of some nullable row/step episode IDs above
-  2^53; compatibility was preserved for now (D-030).
+- Stage B is complete: multi-overlay chunked assembly/writer, per-overlay
+  selection evidence, lexicographic conflict resolution, manifest/config,
+  plausibility report, multi-family CLI/dry-run, and SVG plot helper. D-031
+  corrects nullable episode IDs and records the eight-table format. Synthetic
+  tests pass; seed-42 generation has not yet run.
 - Gate 1 (review of manifest, plausibility report, and plots) is not passed.
   Phase 2 and all later phases remain unstarted; do not mark Gate 2 or Gate 3.
-- Stage C requires a clean committed tree and an explicit human “go” after
-  Stage B review. The unrelated `.claude/` directory was untracked at the last
-  status check and must not be modified without direction.
+- Stage C seed-42 generation is explicitly authorized after Stage B review. It
+  still requires a clean committed tree; `.claude/` was handled by the human.
+  After generation, stop for Gate 1 review; do not start Phase 2 before approval.
 
 ## Data and prior baseline
 

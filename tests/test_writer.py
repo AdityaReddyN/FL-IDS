@@ -35,12 +35,12 @@ def overlay():
     return OverlaySpec("constant_deviation", "moderate", subtype="constant", duration_seconds=100, magnitude_m=5000.0, tau=0.0)
 
 
-def invoke(tmp_path, config, monkeypatch, dirty=False):
+def invoke(tmp_path, config, monkeypatch, dirty=False, overlay_specs=None):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("status: approved\n", encoding="utf-8")
     monkeypatch.setattr(writer, "git_dirty", lambda _root: dirty)
     return writer.write_overlay_tables(
-        source_frame(), overlay(), 17, split_of, config,
+        source_frame(), overlay() if overlay_specs is None else overlay_specs, 17, split_of, config,
         config_path=config_path, output_dir=tmp_path / "new-run",
         max_segments_per_chunk=1,
     )
@@ -68,10 +68,10 @@ def test_writer_streams_schema_validated_tables_and_manifest(tmp_path, monkeypat
     output = tmp_path / "new-run"
     assert manifest["git_dirty"] is False
     assert manifest["overlay_merge_order"] == [overlay().overlay_key]
-    assert manifest["overlay_merge_scope"].startswith("single_overlay_per_run")
+    assert manifest["overlay_merge_scope"].startswith("lexicographic_overlay_key")
     assert set(manifest["tables"]) == {
         "attacked_rows", "step_labels", "episodes", "rejected_candidates",
-        "modified_row_provenance", "windows", "segments",
+        "modified_row_provenance", "windows", "segments", "overlay_selections",
     }
     for name, details in manifest["tables"].items():
         path = output / f"{name}.parquet"
@@ -81,6 +81,20 @@ def test_writer_streams_schema_validated_tables_and_manifest(tmp_path, monkeypat
         assert details["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
         assert manifest["validator_results"][name] == "passed"
     assert json.loads((output / "manifest.json").read_text(encoding="utf-8")) == manifest
+    run_config = json.loads((output / "config.json").read_text(encoding="utf-8"))
+    assert run_config["global_seed"] == 17
+    assert run_config["overlay_specs"][0]["overlay_key"] == overlay().overlay_key
+    assert "python" in run_config["library_versions"]
     report = json.loads((output / "plausibility_report.json").read_text(encoding="utf-8"))
     assert report["episode_count"] == 0
     assert report["unavailable_checks"]
+
+
+def test_writer_records_multi_overlay_merge_order_and_selection(tmp_path, monkeypatch):
+    constant = OverlaySpec("constant_deviation", "moderate", subtype="constant", duration_seconds=100, magnitude_m=5000.0, tau=1.0)
+    gaussian = OverlaySpec("random_gaussian_deviation", "moderate", subtype="gaussian", duration_seconds=100, sigma_m=500.0, tau=1.0)
+    manifest = invoke(tmp_path, {"status": "approved"}, monkeypatch, overlay_specs=[gaussian, constant])
+    assert manifest["overlay_merge_order"] == sorted([constant.overlay_key, gaussian.overlay_key])
+    assert set(manifest["overlays"]) == {constant.overlay_key, gaussian.overlay_key}
+    assert manifest["tables"]["overlay_selections"]["row_count"] == 6
+    assert manifest["merged_totals"]["rejected_by_reason"]["overlay_conflict"] > 0

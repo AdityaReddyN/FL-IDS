@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A approved (D-029); Stage B single-overlay infrastructure reviewed; Stage C authorized but held by dirty worktree and unresolved D-030; no dataset generated; Gate 1 pending**
+**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 authorized; no dataset generated; Gate 1 pending**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -77,10 +77,11 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Per-row provenance (original/modified values, episode id, params, source row)
 - [x] Rejected-candidate log
 - [x] Physical plausibility metrics/report (descriptive; no pass/fail cutoffs approved)
-- [x] Single-overlay Parquet writer, manifest, and CLI with overwrite/dirty/config guards
+- [x] Chunked multi-overlay Parquet writer, manifest/config, and CLI with overwrite/dirty/config guards
 - [x] Unit tests (determinism, no leakage across aircraft, delay correctness, no edits outside intervals)
 - [x] Visual sanity plot script (example trajectories before/after)
-- [ ] Multi-overlay conflict resolution and merged `segments` selection representation (D-030; human direction required)
+- [x] Multi-overlay conflict resolution and per-overlay selection evidence table (D-031)
+- [ ] Stage C: generate seed 42 into a new `data/attack_generation_v3/<run_id>/` directory
 - [ ] **GATE 1: human reviews manifest, report, plots**
 
 ## Phase 2 — Sequence dataset v3 + shortcut audit
