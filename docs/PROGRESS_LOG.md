@@ -315,3 +315,13 @@ only then implement Stage 1 attack-generation code.
 **Problems / surprises:** Git reported permission warnings for its user-level ignore file and `.pytest_cache/`; `.claude/` remains untracked and untouched.
 **Decisions made:** None.
 **Next steps:** Human approval of provisional Stage A parameters and setting `configs/attack_v3_stage1.yaml` to `approved` are still required before Stage B.
+
+### 2026-10-22 — Session 4c — Codex — Approval-gate state check
+**Goal:** Resume from the project handoff instructions and determine whether the next authorized Phase 1 stage may begin.
+**Done:** Re-read the required repository context and verified the live branch, worktree, config status, and latest commit. Branch is `phase1-generation`; config remains `status: proposed_unapproved`; `.claude/` remains an unrelated untracked directory and was not touched. Stopped without starting Stage B or changing config.
+**Ran / verified:** No tests, scripts, or data access. Read-only Git/config inspection only. Latest commit before this entry was `73fdc2d docs: add project chat handoff context`.
+**NOT verified:** No full-suite run after Stage A D-028 edits; no Stage B or later work.
+**Results:** None; no experiment and no E-### entry.
+**Problems / surprises:** Git again reported permission warnings for the user ignore file and `.pytest_cache/`.
+**Decisions made:** None.
+**Next steps:** Human reviews the approval sheet, approves the listed parameter values (or explicitly approves the YAML values), and sets `configs/attack_v3_stage1.yaml` status to `approved`. Do not start Stage B before that change.
