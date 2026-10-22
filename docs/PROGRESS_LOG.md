@@ -369,3 +369,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None.
 **Next steps:** Commit the config-mapping fix and this status update; recheck the output target is absent and worktree clean; retry only seed 42 to `data/attack_generation_v3/stage1_seed_42`. Then inspect the generated result files and stop for Gate 1 review.
 **Questions for human:** None before the authorized seed-42 retry; Gate 1 review remains required before Phase 2.
+
+### 2026-10-22 — Session 4h — Codex — Stage C partial generation attempt
+**Goal:** Retry authorized seed-42 generation after fixing the approved YAML mapping.
+**Done:** Rechecked `phase1-generation`, approved config, clean Git status, and absent target. Started the multi-family writer at `data/attack_generation_v3/stage1_seed_42/`. The process remained CPU-active but produced no final outputs during the monitored interval; stopped it. Updated this context and the roadmap to mark the directory incomplete.
+**Ran / verified:** The target was absent before invocation. During execution eight Parquet files appeared and some grew, but no `manifest.json`, `config.json`, or `plausibility_report.json` was written. The process was stopped; no complete dataset is available for Gate 1.
+**NOT verified:** Table completeness, row counts, table hashes, schema validation after file closure, physical-plausibility metrics, plot generation, or any scientific property. The partial Parquet files are not a dataset and must not be consumed.
+**Results:** No experiment/dataset result; no E-### entry.
+**Problems / surprises:** Full-table generation is much slower than the small Stage A sample suggested, and the CLI has no chunk progress output. The writer is create-only, so the partial directory cannot be retried in place.
+**Decisions made:** None.
+**Next steps:** Keep the partial directory untouched. If continuing generation, commit this status update first and write seed 42 into a distinct new run directory; consider a measured performance optimization before another multi-hour attempt. After a complete run, validate artifacts and stop at Gate 1.
+**Questions for human:** None; seed-42 generation remains authorized, but Gate 1 approval is still required before Phase 2.

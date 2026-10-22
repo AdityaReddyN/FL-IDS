@@ -56,7 +56,10 @@ training data only, and never tune on test data.
   selection evidence, lexicographic conflict resolution, manifest/config,
   plausibility report, multi-family CLI/dry-run, and SVG plot helper. D-031
   corrects nullable episode IDs and records the eight-table format. Synthetic
-  tests pass; seed-42 generation has not yet run.
+  tests pass. Seed-42 generation was attempted but manually stopped after
+  partial Parquet row groups were written without a manifest/config/report.
+  `data/attack_generation_v3/stage1_seed_42/` is incomplete and must not be
+  treated as a dataset; retry to a new run directory.
 - Gate 1 (review of manifest, plausibility report, and plots) is not passed.
   Phase 2 and all later phases remain unstarted; do not mark Gate 2 or Gate 3.
 - Stage C seed-42 generation is explicitly authorized after Stage B review. It

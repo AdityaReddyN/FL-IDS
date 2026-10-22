@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 authorized; no dataset generated; Gate 1 pending**
+**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 authorized; first attempt incomplete (no manifest); Gate 1 pending**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
