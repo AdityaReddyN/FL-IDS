@@ -531,9 +531,19 @@ def altitude_constant(
             "variant must be 'baro_only' or 'baro_plus_geo'"
         )
 
-    baro_in, geo_in = _paired_arrays(
-        baro, geo, "baroaltitude", "geoaltitude"
-    )
+    baro_in = _one_dimensional(baro, "baroaltitude")
+    if variant == "baro_plus_geo":
+        if geo is None:
+            raise ValueError("geoaltitude is required for baro_plus_geo")
+        geo_in = _one_dimensional(geo, "geoaltitude")
+        if baro_in.shape != geo_in.shape:
+            raise ValueError("baroaltitude and geoaltitude must have equal shape")
+    elif geo is None:
+        geo_in = None
+    else:
+        geo_in = _one_dimensional(geo, "geoaltitude")
+        if baro_in.shape != geo_in.shape:
+            raise ValueError("baroaltitude and geoaltitude must have equal shape")
     multipliers = _multipliers(a, baro_in.size)
 
     shift = float(shift_m)
@@ -543,18 +553,21 @@ def altitude_constant(
     active = multipliers > ACTIVE_THRESHOLD
     targets = {"baroaltitude": baro_in}
     if variant == "baro_plus_geo":
+        assert geo_in is not None
         targets["geoaltitude"] = geo_in
     _require_finite_on_active(active, targets)
 
     delta = multipliers * shift
     baro_out = baro_in.copy()
-    geo_out = geo_in.copy()
+    geo_out = None if geo_in is None else geo_in.copy()
     baro_out[active] = baro_in[active] + delta[active]
     if variant == "baro_plus_geo":
+        assert geo_in is not None and geo_out is not None
         geo_out[active] = geo_in[active] + delta[active]
 
     changed = [baro_out]
     if variant == "baro_plus_geo":
+        assert geo_out is not None
         changed.append(geo_out)
     out_of_bounds = np.zeros(baro_in.size, dtype=bool)
     for values in changed:
@@ -564,12 +577,15 @@ def altitude_constant(
         )
     if np.any(out_of_bounds):
         return _reject(
-            {"baroaltitude": baro_in, "geoaltitude": geo_in},
+            targets,
             multipliers,
             "altitude_out_of_range",
         )
 
+    values = {"baroaltitude": baro_out}
+    if geo_out is not None:
+        values["geoaltitude"] = geo_out
     return ManipulationResult(
-        values={"baroaltitude": baro_out, "geoaltitude": geo_out},
+        values=values,
         multipliers=multipliers,
     )

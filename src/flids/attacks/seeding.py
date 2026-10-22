@@ -20,6 +20,11 @@ def _segment_entropy(global_seed: int, icao24: str, segment_id: int) -> int:
     return int.from_bytes(hashlib.sha256(key).digest(), "big")
 
 
+def _parameter_entropy(global_seed: int, icao24: str, segment_id: int) -> int:
+    key = f"{global_seed}|{icao24}|{int(segment_id)}|params".encode("utf-8")
+    return int.from_bytes(hashlib.sha256(key).digest(), "big")
+
+
 def segment_seed_sequence(
     global_seed: int, icao24: str, segment_id: int
 ) -> np.random.SeedSequence:
@@ -62,4 +67,27 @@ def episode_rng(
     """Return a fresh generator for one episode, independent of other episodes."""
     return np.random.default_rng(
         episode_seed_sequence(global_seed, icao24, segment_id, episode_index)
+    )
+
+
+def parameter_seed_sequence(
+    global_seed: int, icao24: str, segment_id: int, episode_index: int
+) -> np.random.SeedSequence:
+    """Return an episode-indexed stream reserved for signs and bearings."""
+    if not isinstance(episode_index, Integral) or isinstance(episode_index, bool):
+        raise TypeError("episode_index must be a non-negative integer")
+    if episode_index < 0:
+        raise ValueError("episode_index must be non-negative")
+    return np.random.SeedSequence(
+        entropy=_parameter_entropy(global_seed, icao24, segment_id),
+        spawn_key=(int(episode_index),),
+    )
+
+
+def parameter_rng(
+    global_seed: int, icao24: str, segment_id: int, episode_index: int
+) -> np.random.Generator:
+    """Return the independent parameter stream for one episode."""
+    return np.random.default_rng(
+        parameter_seed_sequence(global_seed, icao24, segment_id, episode_index)
     )

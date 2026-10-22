@@ -261,3 +261,13 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-024 (approved session answers; no-op thresholds provisional).
 **Next steps:** If the human approves, run `scripts/check_windows_on_real_data.py` and reconcile any window-yield differences before building the assembler. Gate 1b still must recompute the ramp oracle with `magnitude/4`. Do not start the dataset assembler, selection logic, writer, CLI, or generation without approval.
 **Questions for human:** Are the provisional no-op thresholds (100 m horizontal / 30 m altitude) acceptable for Stage 1? Should full-field replay with a measurable source difference only in velocity/heading/vertrate remain a `"no_measurable_change"` rejection (current), or should any changed field count?
+
+### 2026-10-22 — Session 3d-1 — Codex — Pure in-memory overlay assembler
+**Goal:** Add only the approved in-memory assembler and three housekeeping fixes; no dataset, writer, manifest writer, CLI, real-data run, or training.
+**Done:** Added isolated `parameter_rng`; `build_episode` now rejects an ineligible interval; baro-only altitude no longer requires geoaltitude. Added `assembler.py` with `OverlaySpec`, deterministic selection/episode IDs, eligibility/replay/glitch screens, placement/build rejection rows, complete row/step/episode/provenance/window/segment tables, and schema validation. Added `segments` schema, synthetic assembler tests, and an unrun read-only `check_assembler_on_real_data.py` covering 300 train segments and seven families.
+**Ran / verified:** Focused housekeeping tests: 66 passed. Full suite: 247 passed in 3.99 s. `py_compile` passed for the assembler and check script.
+**NOT verified:** The real-data script was not run; no data or results were written. No writer, manifest writer, CLI, quota/density mode, ghost/DoS implementation, or training was added.
+**Results:** No experiment; no E-### entry.
+**Problems / surprises:** None after the direct altitude API compatibility test was retained.
+**Decisions made:** D-025.
+**Next steps:** Human review of the pure assembler and authorization before any writer or real-data check.

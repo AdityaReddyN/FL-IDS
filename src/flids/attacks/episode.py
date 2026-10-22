@@ -508,6 +508,17 @@ def build_episode(
             "insufficient_effective_rows",
         )
 
+    if not np.all(eligible[start_offset:stop]):
+        return _rejected(
+            segment_values,
+            fields,
+            start_offset,
+            stop,
+            realized,
+            positions,
+            "ineligible_interval",
+        )
+
     originals = {
         name: np.asarray(
             segment_values[name][start_offset:stop], dtype=float
@@ -541,12 +552,14 @@ def build_episode(
         baro_full = _segment_field(
             segment_values, "baroaltitude", length
         )
-        geo_full = _segment_field(
-            segment_values, "geoaltitude", length
+        geo_full = (
+            _segment_field(segment_values, "geoaltitude", length)
+            if spec.altitude_variant == "baro_plus_geo"
+            else None
         )
         result = altitude_constant(
             baro_full[start_offset:stop],
-            geo_full[start_offset:stop],
+            None if geo_full is None else geo_full[start_offset:stop],
             realized,
             spec.shift_m,
             spec.altitude_variant,

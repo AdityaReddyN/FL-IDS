@@ -351,6 +351,15 @@ def test_altitude_variants() -> None:
     assert both.values["geoaltitude"].tolist() == [3045.0, 3027.5]
 
 
+def test_baro_only_altitude_constant_does_not_require_geo() -> None:
+    result = altitude_constant(
+        np.array([3000.0, 3000.0]), None, np.array([1.0, 0.5]), 35.0,
+        "baro_only",
+    )
+    assert result.values["baroaltitude"].tolist() == [3035.0, 3017.5]
+    assert "geoaltitude" not in result.values
+
+
 @pytest.mark.parametrize(
     "baro,geo,shift",
     [

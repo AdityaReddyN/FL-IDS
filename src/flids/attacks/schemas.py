@@ -160,6 +160,18 @@ WINDOWS_SCHEMA: dict[str, ColumnSpec] = {
     "tier": ColumnSpec("str", nullable=True),
 }
 
+SEGMENTS_SCHEMA: dict[str, ColumnSpec] = {
+    "icao24": ColumnSpec("str"),
+    "segment_id": ColumnSpec("int32"),
+    "split": ColumnSpec("str"),
+    "n_rows": ColumnSpec("int32"),
+    "cell_id": ColumnSpec("str"),
+    "n_eligible_starts": ColumnSpec("int32"),
+    "eligible": ColumnSpec("bool"),
+    "selection_u": ColumnSpec("float64"),
+    "selected": ColumnSpec("bool"),
+}
+
 TABLES: dict[str, dict[str, ColumnSpec]] = {
     "attacked_rows": ATTACKED_ROWS_SCHEMA,
     "step_labels": STEP_LABELS_SCHEMA,
@@ -167,6 +179,7 @@ TABLES: dict[str, dict[str, ColumnSpec]] = {
     "rejected_candidates": REJECTED_CANDIDATES_SCHEMA,
     "modified_row_provenance": MODIFIED_ROW_PROVENANCE_SCHEMA,
     "windows": WINDOWS_SCHEMA,
+    "segments": SEGMENTS_SCHEMA,
 }
 TABLE_NAMES: tuple[str, ...] = tuple(TABLES)
 

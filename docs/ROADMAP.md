@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — composition, episode assembly, window labelling, and detectability implemented (D-020--D-024); dataset assembler, selection logic, and writer not started**
+**Current phase: 1 — pure in-memory assembly and selection implemented (D-020--D-025); writer, manifest writer, CLI, and dataset generation not started**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -54,6 +54,10 @@ through with `~~` and explain in PROGRESS_LOG).
   schema table (`episode.py`, `windows.py`, `schemas.py`; D-024) with synthetic
   tests; real-data window-yield script written but NOT run; dataset assembler,
   selection logic, writer, and CLI not started
+- [x] Pure in-memory overlay assembler: independent parameter streams, eligible
+  segment Bernoulli selection, placement/build rejection accounting, seven
+  validated tables, and synthetic isolation/determinism tests (D-025); read-only
+  real-data assembler check written but NOT run
 - [ ] Attack framework in `src/flids/attacks/` (base class, target selection: random/area/neighbour)
 - [ ] Constant deviation
 - [ ] Random Gaussian deviation

@@ -125,3 +125,8 @@ def test_windows_table_is_registered() -> None:
     assert list(empty_table("windows").columns) == list(
         TABLES["windows"]
     )
+
+
+def test_segments_table_is_registered() -> None:
+    assert "segments" in TABLE_NAMES
+    validate_table(one_valid_row("segments"), "segments")

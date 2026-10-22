@@ -107,6 +107,37 @@ def test_constant_episode_end_to_end() -> None:
         assert result.changed_fields[row] == ("lat", "lon")
 
 
+def test_build_episode_rejects_ineligible_interval() -> None:
+    segment = moving_segment()
+    times = np.arange(120) * 10
+    eligible = np.ones(120, dtype=bool)
+    eligible[15] = False
+    result = build(
+        segment, times, 10, 20,
+        spec("constant_deviation", magnitude_m=5000.0, bearing_deg=45.0),
+        eligible=eligible,
+    )
+    assert not result.accepted
+    assert result.reason == "ineligible_interval"
+    assert_same(result.values["lat"], segment["lat"][10:30])
+
+
+def test_baro_only_episode_does_not_require_geoaltitude() -> None:
+    segment = moving_segment()
+    del segment["geoaltitude"]
+    times = np.arange(120) * 10
+    result = build(
+        segment, times, 10, 20,
+        spec(
+            "altitude_constant_deviation",
+            altitude_variant="baro_only",
+            shift_m=125.0,
+        ),
+    )
+    assert result.accepted, result.reason
+    assert set(result.values) == {"baroaltitude"}
+
+
 def test_gradual_episode_end_to_end() -> None:
     segment = moving_segment()
     times = np.arange(120) * 10
