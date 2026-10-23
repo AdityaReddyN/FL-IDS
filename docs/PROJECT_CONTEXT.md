@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-23, Session 4n Phase 2 pipeline validation.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-23, Session 4o Phase 3 binary LSTM baseline.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -17,8 +17,11 @@ parameter values were explicitly approved (D-029); the YAML remains
 the human authorized proceeding past Gate 2 while retaining the E-002 shortcut
 caveats (D-034). This does not mean the audit passed: per-feature summary
 statistics remain informative, and E-002 is pipeline validation only. Phase 3
-is starting with an initial binary LSTM on existing v3 windows. The four-day
-`data/hdd_data` archive set has not yet been integrated or validated.
+has begun with a binary LSTM on existing v3 windows. E-003 completed five
+seeds; mean test ROC-AUC is 0.5742 (95% t CI half-width 0.0276), mean PR-AUC
+0.00443, and mean normal FPR at threshold 0.5 is 0.2245. This is pipeline
+validation only and does not meet the user's requested 0.9 ROC-AUC target. The
+four-day `data/hdd_data` archive set has not yet been integrated or validated.
 
 Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
@@ -73,9 +76,11 @@ missingness is near chance in the conditioned slice and position is near chance,
 but the feature-summary audit remains informative and the realistic evaluation
 set retains its natural missingness imbalance. The audit did not meet its
 near-chance summary-statistic criterion. Human authorization to proceed is
-recorded in D-034; this is not an audit pass. Phase 3 model evaluation is now
+recorded in D-034; this is not an audit pass. Phase 3 model evaluation is
 authorized, but remains pipeline validation on synthetic labels over decoded
-state vectors.
+state vectors. E-003's binary LSTM is the first trained v3 detector; its
+five-seed mean test ROC-AUC is 0.5742 (95% t CI half-width 0.0276), with results
+under ignored `results/E-003/`.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

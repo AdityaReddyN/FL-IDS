@@ -60,7 +60,7 @@ files, never estimated.
 - **Conclusion / caveats:** Pipeline validation only on one seed and a two-hour decoded-state-vector source with synthetic labels. Matching makes missingness-only and position-only audits near chance, but per-feature summaries remain informative; realistic val/test retain natural prevalence/missingness. Gate 2 is not passed, and no Phase 3 training or scientific result is authorized by this run.
 
 ### E-003 — Initial binary LSTM on v3 windows
-- **Status:** planned
+- **Status:** done
 - **Date:** 2026-10-23
 - **Phase:** 3 (pipeline validation)
 - **Hypothesis / purpose:** Establish a reproducible learned binary detector baseline after human authorization to proceed past Gate 2, retaining the known E-002 shortcut caveat.
@@ -68,7 +68,7 @@ files, never estimated.
 - **Method / model:** Small CPU LSTM; balanced binary training indices; select checkpoint by validation macro-F1 at threshold 0.5; report ROC-AUC, PR-AUC, normal FPR, and confusion matrix on realistic test data.
 - **Config path:** `results/E-003/binary_lstm/seed<k>/config.json`
 - **Seeds:** 0-4
-- **Git commit:** to be recorded in each config
-- **Key results:** pending; do not infer from validation or from the shortcut audit
+- **Git commit:** `f52350a`; each result config records the code commit and library versions.
+- **Key results:** Across seeds 0-4, test ROC-AUC 0.5742 ± 0.0276 and PR-AUC 0.00443 ± 0.00048 (mean ± 95% t-interval half-width across seeds). Macro-F1 at threshold 0.5 is 0.4380 ± 0.0542; normal FPR at threshold 0.5 is 0.2245 ± 0.1654. Each test split has 37,683 non-ambiguous windows (37,566 normal, 117 attack). Values aggregated from the five per-seed `metrics.json` files.
 - **Result files:** `results/E-003/binary_lstm/seed<k>/metrics.json`, `history.csv`, `test_predictions.csv`
-- **Conclusion / caveats:** Planned only. Pipeline validation, not an operational ADS-B IDS result. No test-set tuning; no ROC-AUC >=0.9 promise.
+- **Conclusion / caveats:** Low discrimination; no support for the requested 0.9 ROC-AUC. Pipeline validation only on one two-hour source and synthetic labels, with a known summary-statistic shortcut signal. No test-set tuning. Five per-seed configs, metrics, histories, and predictions are under ignored `results/E-003/binary_lstm/`.

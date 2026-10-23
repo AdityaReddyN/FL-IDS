@@ -101,7 +101,7 @@ through with `~~` and explain in PROGRESS_LOG).
 ## Phase 3 — Centralized baselines
 - [ ] Classical baseline (LR / RF on engineered features)
 - [ ] LSTM, GRU, 1D-CNN, small Transformer
-- [ ] Initial binary LSTM on v3 realistic test prevalence (E-003; pipeline validation only)
+- [x] Initial binary LSTM on v3 realistic test prevalence, 5 seeds (E-003; pipeline validation only)
 - [ ] (optional) autoencoder trained on normal only
 - [ ] Unified metrics module (PR-AUC, recall@FPR, latency, etc.)
 - [ ] 5 seeds each, CI table
