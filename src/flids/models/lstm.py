@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 from torch import nn
 
@@ -15,3 +17,8 @@ class LSTMClassifier(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         _, (hidden, _) = self.lstm(x)
         return self.classifier(hidden[-1])
+
+
+def save_checkpoint(model: nn.Module, path: str | Path) -> None:
+    """Save CPU-portable model weights without optimizer or training data."""
+    torch.save({key: value.detach().cpu() for key, value in model.state_dict().items()}, path)

@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from flids.models.lstm import LSTMClassifier
+from flids.models.lstm import LSTMClassifier, save_checkpoint
 
 
 def args_parser() -> argparse.Namespace:
@@ -131,6 +131,7 @@ def main() -> int:
         "n_test_attack": int((y_test == 1).sum()), "threshold": 0.5,
         "best_epoch": best_epoch, "best_val_macro_f1": best_score,
     }
+    save_checkpoint(model, args.out_dir / "model_state.pt")
     with (args.out_dir / "history.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(history[0]))
         writer.writeheader()
