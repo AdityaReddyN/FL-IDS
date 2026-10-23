@@ -457,3 +457,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-034: human authorized Gate 2 progression while retaining the failed shortcut-audit caveat. E-003 was pre-registered; no test-based tuning was performed.
 **Next steps:** (1) Inspect E-003 validation predictions and per-family/stratum performance without using test results for selection. (2) Build a new read-only-source ingestion path for the HDD tar/gzip archives and validate schemas, coverage, and aircraft-level split handling. (3) Rebuild a separately versioned attack/sequence dataset from that source, then pre-register and run a multi-seed detector experiment.
 **Questions for human:** None; progression and use of `data/hdd_data` are authorized. The 0.9 ROC-AUC target remains an unverified goal, not a guarantee.
+
+### 2026-10-23 — Session 4o follow-up — Codex — Checkpoint preservation
+**Goal:** Ensure the trained E-003 detector is reusable, not only represented by prediction and metric files.
+**Done:** Added `save_checkpoint` for portable CPU model state dicts and wired the training harness to write `model_state.pt`. Added a checkpoint round-trip test. Preserved the original five-seed E-003 results and ran seed 0 again into a new `seed0_checkpointed/` directory.
+**Ran / verified:** Checkpoint test-first failed on missing `save_checkpoint`, then focused tests passed (2 passed); full suite passed (**283 passed in 15.17s**). The checkpoint exists (28,293 bytes), loads into the model, and the repeated run's metrics JSON is exactly equal to original seed 0. The five-seed aggregate is unchanged.
+**NOT verified:** No additional seeds were checkpointed, and the HDD archives remain unprocessed. The stored weights are a pipeline-validation artifact, not a production detector.
+**Results:** E-003 metrics unchanged; checkpoint path is `results/E-003/binary_lstm/seed0_checkpointed/model_state.pt` (ignored, not committed).
+**Problems / surprises:** The initial harness had omitted trained weights, which made the run less directly reusable. The correction is additive and preserves the original run directories.
+**Decisions made:** None beyond D-034; checkpointing is an implementation detail.
+**Next steps:** (1) Perform validation-only per-family error review. (2) Integrate HDD data into new versioned cleaned/attack/sequence outputs. (3) Continue Phase 3 model comparisons with experiments registered before runs.
+**Questions for human:** None.

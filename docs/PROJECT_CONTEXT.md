@@ -21,7 +21,9 @@ has begun with a binary LSTM on existing v3 windows. E-003 completed five
 seeds; mean test ROC-AUC is 0.5742 (95% t CI half-width 0.0276), mean PR-AUC
 0.00443, and mean normal FPR at threshold 0.5 is 0.2245. This is pipeline
 validation only and does not meet the user's requested 0.9 ROC-AUC target. The
-four-day `data/hdd_data` archive set has not yet been integrated or validated.
+trained seed-0 state dict is preserved at ignored
+`results/E-003/binary_lstm/seed0_checkpointed/model_state.pt`. The four-day
+`data/hdd_data` archive set has not yet been integrated or validated.
 
 Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
