@@ -134,3 +134,14 @@ download is blocked and equations render as images. A v3 implementation can be
 paper-grounded in attack categories, target-selection concepts, replay delay,
 and manipulation families, but any numeric ranges not visible in the text must
 be marked as implementation choices.
+
+## New-source cadence compatibility
+
+The HDD archives in `data/hdd_data` are a separate source from the two-hour
+2017 cleaned table used for the accepted seed-42 dataset. A sampled archive
+README describes roughly 1 Hz state vectors, but cadence and schema consistency
+across all hours are not yet measured. The current assembler/window conventions
+were validated around roughly 10-second rows. Do not apply them to HDD data
+unchanged. First complete the read-only archive audit and follow the cadence
+gate in `docs/phase3_hdd_model_plan.md`; time-based semantics or deterministic
+resampling must be specified and tested before attack generation.

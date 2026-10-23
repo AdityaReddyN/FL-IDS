@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 3 — On 2026-10-23 the human authorized proceeding past Gate 2 with the E-002 caveats retained (D-034). This is permission to continue, not evidence that the shortcut audit passed.**
+**Current phase: 3 — Phase 3 is authorized under D-034 with the E-002 shortcut caveat retained. Phase 3 results remain pipeline validation until the HDD source and pipeline are audited; no later phase gate is approved by this status.**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -99,20 +99,23 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] **GATE 2: human authorized progression with E-002 caveats retained; audit itself did not pass the near-chance summary-stat criterion (D-034)**
 
 ## Phase 3 — Centralized baselines
-- [ ] Classical baseline (LR / RF on engineered features)
-- [ ] LSTM, GRU, 1D-CNN, small Transformer
-- [x] Initial binary LSTM on v3 realistic test prevalence, 5 seeds (E-003; pipeline validation only)
+- [x] Initial binary LSTM on current v3 data, five seeds (E-003; pipeline validation only; ROC-AUC 0.5742 mean)
+- [ ] HDD source audit: archive schema, coverage, cadence, duplicates, missingness, aircraft recurrence (read-only first)
+- [ ] Decide and test cadence-compatible time-based attack/window semantics or deterministic resampling before HDD generation
+- [ ] Classical baselines (LR / RF on engineered features)
+- [ ] LSTM, GRU, temporal 1D-CNN, small Transformer on an audited dataset
 - [ ] (optional) autoencoder trained on normal only
-- [ ] Unified metrics module (PR-AUC, recall@FPR, latency, etc.)
-- [ ] 5 seeds each, CI table
-- [ ] **GATE 3**
+- [ ] Unified metrics and per-family/stratum reporting (PR-AUC, ROC-AUC, recall@fixed FPR, FPR, latency where measurable)
+- [ ] At least five seeds and uncertainty intervals for selected models; aircraft-cluster intervals where IDs support them
+- [ ] **GATE 3: human review of the centralized baseline table and validity caveats**
 
 ## Phase 4 — Client partitioning
-- [ ] IID, geographic grid, aircraft-group, Dirichlet label skew, quantity skew
+- [ ] IID, simulated geographic grid, aircraft-group, Dirichlet label skew, quantity skew; never describe grid cells as actual receivers
 - [ ] Heterogeneity report per partition
 - [ ] **GATE 4**
 
 ## Phase 5 — FL experiments
+- [ ] Compare against a centralized model with identical architecture, input contract, split, and training budget
 - [ ] FL simulation loop (record Flower vs custom decision in DECISIONS.md)
 - [ ] Local-only baseline
 - [ ] FedAvg, FedProx, FedAdam (+ SCAFFOLD optional)
