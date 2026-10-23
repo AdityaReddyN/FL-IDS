@@ -335,3 +335,10 @@ These approve the corresponding portions of D-019. NOT approved and still provis
 **Why:** Prevent missingness imbalance from defining the balanced training sample and measure missingness-only behavior in a comparable diagnostic slice without disguising real prevalence in validation/test.
 **Type:** implementation choice
 **Consequences / risks:** Conditioning discards many normal windows from the paired audit slice and does not establish that the remaining summary-statistic baseline is near chance. The first unconditioned dataset and audit are preserved as initial pipeline evidence; the revised dataset uses a new output directory. Gate 2 remains pending until shortcut results and limitations are reviewed.
+
+### D-034 — Human authorizes Phase 3 progression with shortcut caveat retained (2026-10-23)
+**Context:** E-002's per-feature-summary shortcut audit ROC-AUC was 0.6021 on natural validation and 0.6045 on its missingness-matched validation subset. The audit did not meet the near-chance criterion, and Gate 2 was pending.
+**Decision:** The human authorized proceeding through the remaining stages and asked to build the model as soon as possible. Treat this as Gate 2 authorization to begin Phase 3, while preserving the failed-audit result and its caveats. Do not relabel E-002 as a passing audit. The detector's realistic-prevalence test ROC-AUC is an outcome to measure, not a promised target; no test-set tuning is authorized.
+**Why:** Enables model construction while keeping the known residual summary signal visible in all reports.
+**Type:** human authorization; gate progression with caveat
+**Consequences / risks:** Initial model results remain pipeline validation on synthetic attack labels over decoded OpenSky state vectors. The current v3 source covers about two hours; `data/hdd_data` remains a separate unvalidated source pending schema, processing, and leakage-safe split checks.

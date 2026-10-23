@@ -58,3 +58,17 @@ files, never estimated.
 - **Key results:** Final validation: missingness-only ROC-AUC 0.417674 natural and 0.507331 on the 258-window matched slice; within-segment-position ROC-AUC 0.507595; per-feature-summary ROC-AUC 0.602075 natural and 0.604531 matched. Matched slice: 129 normal + 129 attack. Dataset counts: train 170,767; val 37,712; test 37,721; balanced-train index 1,000 (500 per binary class). These are pipeline diagnostics copied from `shortcut_audit_seed42_final.json` and the dataset manifest.
 - **Result files:** `results/E-002/shortcut_audit_seed42_final.json`; earlier, superseded diagnostic `shortcut_audit_seed42.json`; matched-view diagnostic `shortcut_audit_seed42_conditioned.json`; `data/sequences_v3/seed_42_phase2/manifest.json` and `config.json` (ignored, not committed).
 - **Conclusion / caveats:** Pipeline validation only on one seed and a two-hour decoded-state-vector source with synthetic labels. Matching makes missingness-only and position-only audits near chance, but per-feature summaries remain informative; realistic val/test retain natural prevalence/missingness. Gate 2 is not passed, and no Phase 3 training or scientific result is authorized by this run.
+
+### E-003 — Initial binary LSTM on v3 windows
+- **Status:** planned
+- **Date:** 2026-10-23
+- **Phase:** 3 (pipeline validation)
+- **Hypothesis / purpose:** Establish a reproducible learned binary detector baseline after human authorization to proceed past Gate 2, retaining the known E-002 shortcut caveat.
+- **Data version:** `data/sequences_v3/seed_42_phase2` (two-hour source, synthetic labels, realistic-prevalence val/test; ambiguous windows excluded)
+- **Method / model:** Small CPU LSTM; balanced binary training indices; select checkpoint by validation macro-F1 at threshold 0.5; report ROC-AUC, PR-AUC, normal FPR, and confusion matrix on realistic test data.
+- **Config path:** `results/E-003/binary_lstm/seed<k>/config.json`
+- **Seeds:** 0-4
+- **Git commit:** to be recorded in each config
+- **Key results:** pending; do not infer from validation or from the shortcut audit
+- **Result files:** `results/E-003/binary_lstm/seed<k>/metrics.json`, `history.csv`, `test_predictions.csv`
+- **Conclusion / caveats:** Planned only. Pipeline validation, not an operational ADS-B IDS result. No test-set tuning; no ROC-AUC >=0.9 promise.

@@ -13,8 +13,12 @@ Phase 1 Stage C seed-42 generation is complete and Gate 1 was accepted by the
 human (D-032). The attack foundation, seven-family assembler, writer and
 manifest checks are complete (D-020--D-031); Gate 0 is approved. Stage 1
 parameter values were explicitly approved (D-029); the YAML remains
-`status: approved`. Phase 2 is in progress; E-002 pipeline validation ran, but
-Gate 2 is not passed because per-feature summary statistics remain informative.
+`status: approved`. Phase 2 sequence construction is complete. On 2026-10-23,
+the human authorized proceeding past Gate 2 while retaining the E-002 shortcut
+caveats (D-034). This does not mean the audit passed: per-feature summary
+statistics remain informative, and E-002 is pipeline validation only. Phase 3
+is starting with an initial binary LSTM on existing v3 windows. The four-day
+`data/hdd_data` archive set has not yet been integrated or validated.
 
 Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
@@ -67,8 +71,11 @@ per-feature summaries 0.6021. On the missingness-matched validation subset,
 missingness-only was 0.5073 and summary statistics were 0.6045. Therefore
 missingness is near chance in the conditioned slice and position is near chance,
 but the feature-summary audit remains informative and the realistic evaluation
-set retains its natural missingness imbalance. Gate 2 is not passed; no Phase 3
-training or scientific result was produced.
+set retains its natural missingness imbalance. The audit did not meet its
+near-chance summary-statistic criterion. Human authorization to proceed is
+recorded in D-034; this is not an audit pass. Phase 3 model evaluation is now
+authorized, but remains pipeline validation on synthetic labels over decoded
+state vectors.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.

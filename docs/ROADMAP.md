@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 2 — Gate 1 accepted by human direction (D-032); Phase 2 sequence pipeline built and audited on seed-42 data; Gate 2 is NOT passed (per-feature-summary ROC-AUC 0.6021 and realistic-prevalence missingness shortcut remain under review).**
+**Current phase: 3 — On 2026-10-23 the human authorized proceeding past Gate 2 with the E-002 caveats retained (D-034). This is permission to continue, not evidence that the shortcut audit passed.**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -96,11 +96,12 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Retain `onground` and a configured stale-data flag as auxiliary diagnostic arrays (30-second threshold is an implementation choice).
 - [x] Keep replay and fixed-value freeze as separate multiclass labels.
 - [x] Exclude `contact_lag_seconds` from model inputs pending leakage review; it is retained only as an auxiliary diagnostic.
-- [ ] **GATE 2**
+- [x] **GATE 2: human authorized progression with E-002 caveats retained; audit itself did not pass the near-chance summary-stat criterion (D-034)**
 
 ## Phase 3 — Centralized baselines
 - [ ] Classical baseline (LR / RF on engineered features)
 - [ ] LSTM, GRU, 1D-CNN, small Transformer
+- [ ] Initial binary LSTM on v3 realistic test prevalence (E-003; pipeline validation only)
 - [ ] (optional) autoencoder trained on normal only
 - [ ] Unified metrics module (PR-AUC, recall@FPR, latency, etc.)
 - [ ] 5 seeds each, CI table
