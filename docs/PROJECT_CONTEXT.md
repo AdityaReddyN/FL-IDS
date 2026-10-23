@@ -1,7 +1,7 @@
 # PROJECT_CONTEXT.md
 
 > **Snapshot, rewritten in place.** Keep it short and current. History belongs in
-> `PROGRESS_LOG.md`. Last updated: 2026-10-23, Session 4m Stage C generation.
+> `PROGRESS_LOG.md`. Last updated: 2026-10-23, Session 4n Phase 2 pipeline validation.
 
 ## Goal
 Publishable research paper on federated-learning-based intrusion detection for
@@ -9,11 +9,12 @@ ADS-B enabled systems, using OpenSky ADS-B data and synthetic attacks grounded
 in Li et al. (2020), IET Information Security 14(5), doi:10.1049/iet-ifs.2018.5635.
 
 ## Current phase
-Phase 1 Stage B is complete; Stage C seed-42 generation is authorized after the
-required clean commit. The attack foundation, seven-family in-memory
-assembler, schemas, and tests are implemented (D-020--D-028); Gate 0 is
-approved. Stage 1 parameter values were explicitly approved by the human in
-Session 4d (D-029); `configs/attack_v3_stage1.yaml` now has `status: approved`.
+Phase 1 Stage C seed-42 generation is complete and Gate 1 was accepted by the
+human (D-032). The attack foundation, seven-family assembler, writer and
+manifest checks are complete (D-020--D-031); Gate 0 is approved. Stage 1
+parameter values were explicitly approved (D-029); the YAML remains
+`status: approved`. Phase 2 is in progress; E-002 pipeline validation ran, but
+Gate 2 is not passed because per-feature summary statistics remain informative.
 
 Session 4a decisions (D-028): overlay-keyed selection streams are independent;
 merged datasets allow one overlay per segment and resolve conflicts by
@@ -38,9 +39,36 @@ candidates, all rejected as `insufficient_effective_rows` under the approved
 120-second nominal duration/five-effective-row rule. Therefore only six family
 sanity plots exist. Physical plausibility is descriptive only; RF replay
 fidelity, raw ADS-B bit-level effects, signal strength/receiver processing, and
-multi-receiver multilateration checks are unavailable. Gate 1 review is pending;
-do not begin Phase 2 or later phases until the human reviews the manifest,
-report, and plots and resolves the zero-gradual-episode issue.
+multi-receiver multilateration checks are unavailable. The human accepted the
+seed-42 output for Gate 1 and authorized Phase 2 (D-032), without changing the
+approved parameters. Zero gradual episodes remain: all 48 selected candidates
+were rejected by the approved 120-second/five-effective-row rule.
+
+Phase 2 sequence construction is implemented in `src/flids/data/sequences_v3.py`
+and `scripts/build_sequences_v3.py`. The current pipeline-validation output is
+`data/sequences_v3/seed_42_phase2/` (ignored; not committed): 170,767 train,
+37,712 validation, and 37,721 test windows, each with 15 channels (8 continuous
+including heading sin/cos, plus 7 explicit missing flags). Aircraft splits and
+truth labels are inherited from Stage C. Ambiguous windows are retained with
+label -1. Preprocessing uses unique source rows from train windows only; missing
+values receive train-only means and continuous channels are standardized with
+train-only scales. Binary-balanced training indices match attack windows to
+unique normal windows by total missing-cell count. Realistic train/validation/
+test arrays remain unchanged; validation also provides a 258-window matched
+audit index (129 normal + 129 attack). `onground`, contact lag, and a 30-second
+stale flag are auxiliary only, not model inputs; the stale threshold is an
+implementation choice. Manifest hashes for all generated arrays and metadata
+were verified. Earlier random-balanced and intermediate outputs are preserved
+under separate ignored paths; use only `seed_42_phase2` for current work.
+
+E-002 is pipeline validation only. Natural validation shortcut ROC-AUCs:
+missingness-only 0.4177 (training was matched), position-only 0.5076, and
+per-feature summaries 0.6021. On the missingness-matched validation subset,
+missingness-only was 0.5073 and summary statistics were 0.6045. Therefore
+missingness is near chance in the conditioned slice and position is near chance,
+but the feature-summary audit remains informative and the realistic evaluation
+set retains its natural missingness imbalance. Gate 2 is not passed; no Phase 3
+training or scientific result was produced.
 
 ## Data (VERIFY AND FILL IN during Phase 0 — values below are unverified)
 - Source: OpenSky Network **decoded state vectors** (not raw 112-bit messages), ~10 s sampling.
@@ -59,7 +87,7 @@ report, and plots and resolves the zero-gradual-episode issue.
 |---|---|---|---|---|---|
 | v1 | `data/sequences/` | 30 / stride 10 | legacy | 5 synthetic | legacy, do not use |
 | v2 | `data/sequences_v2/` | 30 / stride 10 | aircraft 70/15/15, train-only scaler | normal + 4 ad hoc attacks, balanced | immutable baseline |
-| v3 | `data/sequences_v3/` | TBD | aircraft-level | TBD | not started |
+| v3 | `data/sequences_v3/seed_42_phase2/` | 30 / stride 10 | inherited aircraft 70/15/15 | normal + 7 declared attack families (gradual has 0 examples) | pipeline validation only; Gate 2 pending |
 
 ## Attacks
 - v2 attacks (ad hoc, NOT from the paper): position offset (lat ±0.15, lon ±0.20),

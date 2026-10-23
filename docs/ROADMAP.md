@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 1 — Stage A approved (D-029); Stage B multi-overlay infrastructure implemented (D-031); Stage C seed 42 generated and manifest-verified; Gate 1 review pending (zero accepted gradual episodes)**
+**Current phase: 2 — Gate 1 accepted by human direction (D-032); Phase 2 sequence pipeline built and audited on seed-42 data; Gate 2 is NOT passed (per-feature-summary ROC-AUC 0.6021 and realistic-prevalence missingness shortcut remain under review).**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -82,20 +82,20 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Visual sanity plot script (example trajectories before/after)
 - [x] Multi-overlay conflict resolution and per-overlay selection evidence table (D-031)
 - [x] Stage C: generate seed 42 into `data/attack_generation_v3/stage1_seed_42_retry4/`; all eight Parquet files, manifest row counts/hashes, clean commit, and schemas verified; six of seven family plots written because all 48 selected gradual candidates were rejected as `insufficient_effective_rows`
-- [ ] **GATE 1: human reviews manifest, report, plots**
+- [x] **GATE 1: human accepts seed-42 manifest/report/plots and authorizes Phase 2 (D-032); zero accepted gradual episodes remain explicitly documented**
 
 ## Phase 2 — Sequence dataset v3 + shortcut audit
-- [ ] Window builder from attacked row table, per-step + per-window labels
-- [ ] Aircraft-level split; source windows kept together; train-only preprocessing
-- [ ] Balanced train set + realistic-prevalence val/test sets
-- [ ] Binary and multiclass labels
-- [ ] Remove v2 shortcuts (placement, missingness parity)
-- [ ] Shortcut audit script + results logged
+- [x] Window builder from attacked row table, using Stage C per-step + per-window truth labels
+- [x] Aircraft-level split; source windows kept together; train-only preprocessing
+- [x] Binary and multiclass labels (gradual class declared but has zero examples in seed 42)
+- [x] Balanced binary train indices + realistic-prevalence val/test arrays
+- [ ] Remove v2 shortcuts (position-only is near chance; natural missingness imbalance and summary-statistic signal remain; see E-002)
+- [x] Shortcut audit script + measured results logged in E-002; audit does NOT pass the near-chance criterion
 - [ ] Delta features: derive only within segments; retain undefined deltas at starts/gaps.
-- [ ] No median imputation inside windows; use train-only preprocessing or explicit masks.
-- [ ] Retain `onground` and a configured stale-data flag as provenance/diagnostic fields.
-- [ ] Specify and audit distinguishable true replay and fixed-value freeze labels.
-- [ ] Audit `contact_lag_seconds` for label leakage before admitting it as a model feature.
+- [x] No median imputation inside windows; continuous inputs use unique train-row mean/scaling, with explicit unscaled missing masks.
+- [x] Retain `onground` and a configured stale-data flag as auxiliary diagnostic arrays (30-second threshold is an implementation choice).
+- [x] Keep replay and fixed-value freeze as separate multiclass labels.
+- [x] Exclude `contact_lag_seconds` from model inputs pending leakage review; it is retained only as an auxiliary diagnostic.
 - [ ] **GATE 2**
 
 ## Phase 3 — Centralized baselines

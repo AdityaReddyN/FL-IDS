@@ -20,3 +20,20 @@ python scripts/train_centralized_lstm.py --data-dir data/reproductions/phase0/se
 Run checks with `python -m pytest`. Legacy v1 sequence scripts live in
 `scripts/legacy/` for provenance only. The active context records live in
 `docs/`.
+
+## Phase 2 sequence pipeline (pipeline validation only)
+
+The accepted seed-42 Stage C attack tables are under
+`data/attack_generation_v3/stage1_seed_42_retry4/`. Build a new sequence output
+without overwriting an existing directory:
+
+```powershell
+python scripts/build_sequences_v3.py --input-dir data/attack_generation_v3/stage1_seed_42_retry4 --out-dir data/sequences_v3/seed_42_rerun_1 --seed 42
+python scripts/audit_shortcuts_v3.py --dataset-dir data/sequences_v3/seed_42_rerun_1 --out results/E-002/shortcut_audit_rerun_1.json --seed 42
+```
+
+This is pipeline validation on decoded state vectors with synthetic labels, not
+a scientific or operational-security result. The realistic validation/test
+arrays retain natural prevalence. Gate 2 is not passed: the summary-statistic
+shortcut baseline remains informative; see E-002 and `PROGRESS_LOG.md`. Do not
+start Phase 3 before the shortcut criterion is resolved and Gate 2 is reviewed.

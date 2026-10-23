@@ -1,6 +1,6 @@
 # FL-IDS project handoff for a new chat
 
-**Snapshot date:** 2026-10-22
+**Snapshot date:** 2026-10-23
 **Purpose:** Give a new assistant enough project context to resume work without
 relying on another chat. This is a navigation aid and current-state summary;
 the repository's `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md`,
@@ -20,11 +20,10 @@ At the beginning of a new session, read in this order:
 
 Do not treat this handoff as permission to cross a human approval gate. If its
 state disagrees with the live config or newer repository docs, verify and follow
-the newer source. At this snapshot the current branch is `phase1-generation`,
-the latest commit is `61edcca phase1: stage A parameter approval and validation`,
-and `git status --short` showed an untracked `.claude/` directory. That directory
-was not inspected or modified. Git also warned that `.pytest_cache/` could not be
-opened in this environment. Recheck branch and status before any work.
+the newer source. At this snapshot the branch is `phase1-generation`; recheck
+branch/status before work. The Stage C seed-42 dataset was accepted for Gate 1
+by the human (D-032). Phase 2 has a pipeline-validation dataset at
+`data/sequences_v3/seed_42_phase2/`, but Gate 2 is not passed. Verify live Git.
 
 ## Mission and scientific framing
 
@@ -61,11 +60,12 @@ training data only, and never tune on test data.
   `data/attack_generation_v3/stage1_seed_42/` and `.../stage1_seed_42_retry1/`
   are incomplete and must not be treated as datasets. A merge-index optimization
   has been tested; retry only to a new run directory after its commit.
-- Gate 1 (review of manifest, plausibility report, and plots) is not passed.
-  Phase 2 and all later phases remain unstarted; do not mark Gate 2 or Gate 3.
-- Stage C seed-42 generation is explicitly authorized after Stage B review. It
-  still requires a clean committed tree; `.claude/` was handled by the human.
-  After generation, stop for Gate 1 review; do not start Phase 2 before approval.
+- Gate 1 was accepted by the human; zero accepted gradual episodes remain
+  explicitly recorded. Do not change approved Phase 1 parameters.
+- Phase 2 builder and shortcut audit exist. Realistic validation is unchanged;
+  balanced training and a separate validation audit slice match missingness.
+  Per-feature-summary ROC-AUC remains 0.6021 natural / 0.6045 conditioned, so
+  Gate 2 is not passed. No Phase 3 training or later phase has started.
 
 ## Data and prior baseline
 
@@ -166,35 +166,33 @@ The human approved the Draft 4 values listed by `scripts/make_approval_sheet.py`
 `configs/attack_v3_stage1.yaml` is now `approved`. Do not change the approved
 values without a new human decision.
 
-### Stage B — current implementation status
+### Stage B — completed implementation status
 
-The current work adds the single-overlay pieces above. The multi-overlay
-selection/conflict merge is still unresolved because the specified `segments`
-schema has one selection draw while each overlay has a distinct stream and
-eligibility mask. D-030 records the issue. Keep the legacy golden output until
-the human decides whether its episode-ID rounding bug may be corrected.
+Multi-overlay selection/conflict handling, exact episode IDs, and selection
+evidence were resolved in D-031. Stage B and Stage C are complete; seed-42
+outputs are manifest-verified under `data/attack_generation_v3/stage1_seed_42_retry4/`.
 
 ### Stage C — human gate after Stage B review
 
-Generation to `data/attack_generation_v3/<run_id>/` is permitted only after the
-human reviews completed Stage B, resolves D-030, and explicitly says “go”, from a clean committed tree.
-Generate seed 42 first. Do not generate later seeds until review. Never write to
-immutable paths, never commit data, and do not push or merge.
+Seed 42 is generated and accepted for Gate 1. Preserve it; do not regenerate
+without authorization. Never write to immutable paths, never commit data, and
+do not push or merge.
 
 ## Remaining project roadmap
 
-- **Phase 1:** Stage A values approved; finish Stage B's merge/ID decisions,
-  obtain Stage B review and explicit Stage C go, then generate and pass Gate 1.
-- **Phase 2:** build v3 sequence windows, split by aircraft before windowing,
-  train-only preprocessing, realistic and balanced sets, leakage/shortcut
-  audits, then Gate 2.
+- **Phase 1:** Stage C complete; Gate 1 accepted under D-032. Gradual deviation
+  has zero accepted episodes at seed 42.
+- **Phase 2:** sequence pipeline built; E-002 is pipeline validation only. The
+  shortcut audit is not a pass because per-feature summaries remain informative.
+  Investigate/fix Phase 2 shortcut criteria and stop for Gate 2 review before
+  Phase 3.
 - **Phase 3:** centralized baselines only after Gate 2; Gate 3 remains
   unapproved. A prior Phase 3 infrastructure request on a different branch
   described v2-only outputs as pipeline validation and explicitly prohibited
   ticking Gate 3; it does not override the current Phase 1 branch/gates.
-- **Phases 4–8:** client partitioning, FL, robustness/privacy, evaluation, and
-  paper support are future work. No FL code exists yet; v2 client IDs are IID
-  placeholders.
+- **Phases 3–8:** centralized baselines, client partitioning, FL,
+  robustness/privacy, evaluation, and paper support remain future work. No FL
+  code exists yet; v2 client IDs are IID placeholders.
 
 ## Mandatory working rules
 

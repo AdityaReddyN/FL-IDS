@@ -1,6 +1,6 @@
 # Attack V3 Design — Decoupled Truth, Detectability Strata, and Long-Episode Feasibility (Draft 4)
 
-**Status:** Approved design basis per D-020 and D-029. D-019 supersedes the effect-gate and window-rule portions of D-011, D-014, and D-018. Dataset generation remains gated on Stage B review and explicit human authorization; this approval does not pass Gate 1.
+**Status:** Approved design basis per D-020 and D-029. D-019 supersedes the effect-gate and window-rule portions of D-011, D-014, and D-018. Seed-42 Stage C output was accepted for Gate 1 by the human (D-032); Phase 2 sequence construction is now underway. The zero-accepted-gradual outcome remains part of the approved seed-42 record and was not tuned away.
 
 ---
 

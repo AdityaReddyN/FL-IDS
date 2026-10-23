@@ -1,4 +1,6 @@
 data/
+!src/flids/data/
+!src/flids/data/**
 results/
 logs/
 docs/references/

@@ -44,3 +44,17 @@ files, never estimated.
   identical to `results/centralized_lstm/baseline_h64_l1_seed42/test_predictions.csv`.
 - **Conclusion / caveats:** Single-seed, balanced, ad hoc v2 synthetic benchmark;
   not an operational IDS result.
+
+### E-002 — Phase 2 v3 sequence and shortcut pipeline validation
+- **Status:** done (pipeline audit did not meet the Gate 2 near-chance criterion)
+- **Date:** 2026-10-23
+- **Phase:** 2
+- **Hypothesis / purpose:** Build sequence arrays from the verified seed-42 Stage C tables using the fixed aircraft split, train-only preprocessing, explicit missing masks, missingness-matched binary-balanced train indices, and unchanged realistic-prevalence validation/test splits; run natural and conditioned missingness, within-segment-position, and per-feature-summary shortcut baselines.
+- **Data version:** `data/attack_generation_v3/stage1_seed_42_retry4` -> initial `data/sequences_v3/seed_42`, intermediate `data/sequences_v3/seed_42_missingness_matched`, final `data/sequences_v3/seed_42_phase2`
+- **Method / model:** Deterministic sequence builder; CPU logistic-regression shortcut diagnostics (no detector-performance claim)
+- **Config path:** `data/sequences_v3/seed_42_phase2/config.json`; audit result `results/E-002/shortcut_audit_seed42_final.json`
+- **Seeds:** 42
+- **Git commit:** `957a262`; builder worktree was dirty, with module/script SHA-256 values recorded in the dataset config.
+- **Key results:** Final validation: missingness-only ROC-AUC 0.417674 natural and 0.507331 on the 258-window matched slice; within-segment-position ROC-AUC 0.507595; per-feature-summary ROC-AUC 0.602075 natural and 0.604531 matched. Matched slice: 129 normal + 129 attack. Dataset counts: train 170,767; val 37,712; test 37,721; balanced-train index 1,000 (500 per binary class). These are pipeline diagnostics copied from `shortcut_audit_seed42_final.json` and the dataset manifest.
+- **Result files:** `results/E-002/shortcut_audit_seed42_final.json`; earlier, superseded diagnostic `shortcut_audit_seed42.json`; matched-view diagnostic `shortcut_audit_seed42_conditioned.json`; `data/sequences_v3/seed_42_phase2/manifest.json` and `config.json` (ignored, not committed).
+- **Conclusion / caveats:** Pipeline validation only on one seed and a two-hour decoded-state-vector source with synthetic labels. Matching makes missingness-only and position-only audits near chance, but per-feature summaries remain informative; realistic val/test retain natural prevalence/missingness. Gate 2 is not passed, and no Phase 3 training or scientific result is authorized by this run.
