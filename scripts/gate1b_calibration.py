@@ -115,42 +115,45 @@ def process_part(df, train_ids, horiz, replay_res, alt, capacity):
              "geo": altitude_residual_m(geo[prev][av], geo[av], vrate[av], dt[av]),
              "vband": vband[av], "train": is_train[av]})
 
-    # Partial replay: per segment link to ~300 s earlier eligible row.
-    for _key, pos in df.groupby(["icao24", "segment_id"], sort=False).indices.items():
+    # One pass over segments: collect partial-replay rows (added to the
+    # reservoir ONCE per part, not per segment, to avoid O(n^2) concatenation)
+    # and accumulate episode-start capacity.
+    rep: dict[str, list] = {k: [] for k in ("north", "east", "en", "ee", "sn", "se", "band", "train")}
+    segment_indices = df.groupby(["icao24", "segment_id"], sort=False).indices
+    for (ic, _sg), pos in segment_indices.items():
         pos = np.asarray(pos, dtype=np.int64)
         if pos.size < 2:
             continue
+        ic = str(ic)
         sn, se = _replay_shift(time[pos], lat[pos], lon[pos], eligible[pos])
         rp = pair[pos] & np.isfinite(sn)
-        if not rp.any():
-            continue
-        local = pos[rp]
-        replay_res.add({"north": north[local], "east": east[local], "en": en[local],
-                        "ee": ee[local], "sn": sn[rp], "se": se[rp],
-                        "band": sband[local], "train": is_train[local]})
-
-    # Capacity: eligible episode-start runs per split x speed band.
-    for (ic, _sg), pos in df.groupby(["icao24", "segment_id"], sort=False).indices.items():
-        pos = np.asarray(pos, dtype=np.int64)
-        split = "train" if str(ic) in train_ids else capacity["_split_of"].get(str(ic), None)
+        if rp.any():
+            local = pos[rp]
+            rep["north"].append(north[local]); rep["east"].append(east[local])
+            rep["en"].append(en[local]); rep["ee"].append(ee[local])
+            rep["sn"].append(sn[rp]); rep["se"].append(se[rp])
+            rep["band"].append(sband[local]); rep["train"].append(is_train[local])
+        split = "train" if ic in train_ids else capacity["_split_of"].get(ic)
         if split is None:
             continue
-        elig = eligible[pos]
-        prefix = np.r_[0, np.cumsum(elig, dtype=np.int64)]
+        prefix = np.r_[0, np.cumsum(eligible[pos], dtype=np.int64)]
+        bands_at = sband[pos]
         for label, ep in EPISODE_ROWS.items():
             if pos.size < ep:
                 continue
             starts = np.flatnonzero(prefix[ep:] - prefix[:-ep] == ep)
             if starts.size == 0:
                 continue
-            bands = sband[pos][starts]
+            bands = bands_at[starts]
             for bname, _, _ in SPEED_BANDS:
                 k = int(np.count_nonzero(bands == bname))
                 if k == 0:
                     continue
                 cell = capacity[label].setdefault(split, {}).setdefault(bname, {"episode_starts": 0, "aircraft": set()})
                 cell["episode_starts"] += k
-                cell["aircraft"].add(str(ic))
+                cell["aircraft"].add(ic)
+    if rep["north"]:
+        replay_res.add({k: np.concatenate(v) for k, v in rep.items()})
 
 
 def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
@@ -274,10 +277,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=Path("results/gate1b_calibration_v2.json"))
     parser.add_argument("--reservoir", type=int, default=3_000_000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--max-parts", type=int, default=None,
+                        help="process only the first N parts (smoke test; thresholds are then partial)")
     return parser.parse_args()
 
 
-def run(clean_dir: Path, reservoir: int, seed: int) -> dict:
+def run(clean_dir: Path, reservoir: int, seed: int, max_parts: int | None = None) -> dict:
     split = json.loads((clean_dir / "split_aircraft.json").read_text(encoding="utf-8"))
     train_ids = set(map(str, split["train"]))
     split_of = {str(ic): name for name, ids in split.items() for ic in ids}
@@ -289,6 +294,8 @@ def run(clean_dir: Path, reservoir: int, seed: int) -> dict:
     parts = sorted(clean_dir.glob("part_*.parquet"))
     if not parts:
         raise SystemExit(f"no part_*.parquet in {clean_dir}")
+    if max_parts is not None:
+        parts = parts[:max_parts]
     for part in parts:
         df = pd.read_parquet(part, columns=["icao24", "segment_id", "time", "onground",
                                             "contact_lag_seconds", *FEATURES])
@@ -304,7 +311,7 @@ def main() -> int:
     out = args.out if args.out.is_absolute() else ROOT / args.out
     if out.name == "calibration_v3_stage1.json" or "docs" in out.parts:
         raise SystemExit("refusing to write under docs/ or over calibration_v3_stage1.json")
-    report = run(clean_dir, args.reservoir, args.seed)
+    report = run(clean_dir, args.reservoir, args.seed, args.max_parts)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({"thresholds": report["speed_band_train_p95_threshold_m"],
