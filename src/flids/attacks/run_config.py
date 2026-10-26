@@ -21,6 +21,7 @@ def overlay_from_config(
     duration_seconds: float | None = None,
     altitude_variant: str = "baro_only",
     episodes_per_segment: int = 1,
+    onset_mode: str = "linear_mix",
 ) -> OverlaySpec:
     """Build one overlay from approved config values; does not read YAML.
 
@@ -78,11 +79,40 @@ def overlay_from_config(
         replay_delay_s=float(replay["paper_grounded_delay_seconds"]),
         replay_tolerance_s=float(replay["timestamp_tolerance_seconds"]),
         tau=requested_tau,
+        onset_mode=onset_mode,
         episodes_per_segment=episodes_per_segment,
         dataset_mode=config["region"]["primary_dataset_mode"],
         geoaltitude_glitch_threshold_m=float(glitch) if attack_family == "altitude_constant_deviation" and altitude_variant == "baro_plus_geo" and glitch is not None else None,
         min_gap_seconds=float(episodes["minimum_inter_episode_gap_seconds"]),
     )
+
+
+def overlays_from_plan(config: dict, plan: dict) -> tuple[OverlaySpec, ...]:
+    """Build the overlays for one run from an already-validated run plan.
+
+    ``tau`` entries build Bernoulli overlays. ``quota_target`` entries use the
+    ranked quota selection implemented in Stage S2; until then this raises
+    ``NotImplementedError`` so a quota plan fails loudly rather than silently
+    falling back to Bernoulli selection.
+    """
+    overlays = []
+    for entry in plan["overlays"]:
+        if entry.get("tau") is None:
+            raise NotImplementedError(
+                "quota_target overlays require ranked quota selection "
+                "(Stage S2 in nextSteps.md); set 'tau' for Bernoulli mode"
+            )
+        overlays.append(overlay_from_config(
+            config,
+            entry["family"],
+            entry["tier"],
+            tau=float(entry["tau"]),
+            duration_seconds=float(entry["duration_seconds"]),
+            altitude_variant=entry.get("altitude_variant", "baro_only"),
+            episodes_per_segment=int(entry.get("episodes_per_segment", 1)),
+            onset_mode=entry.get("onset_mode", "linear_mix"),
+        ))
+    return tuple(overlays)
 
 
 def dry_run_summary(

@@ -1,6 +1,6 @@
 import pytest
 
-from flids.attacks.run_config import dry_run_summary, overlay_from_config
+from flids.attacks.run_config import dry_run_summary, overlay_from_config, overlays_from_plan
 
 
 def config():
@@ -34,6 +34,38 @@ def test_overlay_from_config_rejects_out_of_config_choices():
         overlay_from_config(config(), "ghost_injection", "moderate")
     with pytest.raises(ValueError, match="tier"):
         overlay_from_config(config(), "constant_deviation", "gross")
+
+
+def test_overlay_from_config_plumbs_onset_mode():
+    overlay = overlay_from_config(config(), "constant_deviation", "moderate", onset_mode="abrupt")
+    assert overlay.onset_mode == "abrupt"
+
+
+def test_overlays_from_plan_builds_tau_overlays_with_onset_mode():
+    plan = {
+        "plan_version": 1,
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120, "tau": 0.005},
+            {"family": "gradual_deviation", "tier": "moderate", "duration_seconds": 900,
+             "onset_mode": "abrupt", "tau": 0.01},
+        ],
+    }
+    overlays = overlays_from_plan(config(), plan)
+    assert [o.attack_family for o in overlays] == ["constant_deviation", "gradual_deviation"]
+    assert overlays[0].onset_mode == "linear_mix" and overlays[0].tau == 0.005
+    assert overlays[1].onset_mode == "abrupt" and overlays[1].duration_seconds == 900
+
+
+def test_overlays_from_plan_quota_target_not_implemented_in_s1():
+    plan = {
+        "plan_version": 1,
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120,
+             "quota_target": {"episodes": 50, "unique_aircraft": 40}},
+        ],
+    }
+    with pytest.raises(NotImplementedError, match="quota"):
+        overlays_from_plan(config(), plan)
 
 
 def test_dry_run_summary_returns_counts_without_writing(tmp_path):

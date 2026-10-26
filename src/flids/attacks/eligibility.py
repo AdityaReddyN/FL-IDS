@@ -88,6 +88,9 @@ def row_eligible(df: pd.DataFrame, fields: Iterable[str]) -> np.ndarray:
         ),
     )
 
+    # A null onground is treated as ineligible for every family: it is unknown
+    # whether the aircraft was airborne, so the row cannot be used (D-038).
+    onground_null = df["onground"].isna().to_numpy()
     onground = df["onground"].fillna(True).astype(bool).to_numpy()
     lag_missing = (
         df["contact_lag_missing"].fillna(True).astype(bool).to_numpy()
@@ -96,7 +99,7 @@ def row_eligible(df: pd.DataFrame, fields: Iterable[str]) -> np.ndarray:
         df["contact_lag_seconds"], errors="coerce"
     ).to_numpy(dtype=float)
 
-    mask = ~onground
+    mask = ~onground & ~onground_null
     mask &= ~lag_missing
     mask &= np.isfinite(lag) & (lag >= 0.0) & (lag <= MAX_CONTACT_LAG_SECONDS)
 

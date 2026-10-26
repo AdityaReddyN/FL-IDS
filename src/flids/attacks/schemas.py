@@ -56,7 +56,9 @@ ATTACKED_ROWS_SCHEMA: dict[str, ColumnSpec] = {
     "split": ColumnSpec("str"),
     **{f"orig_{field}": ColumnSpec("float64", nullable=True) for field in FEATURE_FIELDS},
     **{f"mod_{field}": ColumnSpec("float64", nullable=True) for field in FEATURE_FIELDS},
-    "onground": ColumnSpec("bool"),
+    # Nullable: a null onground row is ineligible for every family (D-038) and
+    # the null is carried through to the output rather than coerced to True.
+    "onground": ColumnSpec("bool", nullable=True),
     # The cleaned table derives this from lastcontact and marks nulls separately.
     "contact_lag_seconds": ColumnSpec("float64", nullable=True),
     "contact_lag_missing": ColumnSpec("bool"),

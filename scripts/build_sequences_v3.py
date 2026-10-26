@@ -38,6 +38,19 @@ def main() -> int:
     output_dir = args.out_dir if args.out_dir.is_absolute() else root / args.out_dir
     if output_dir.exists():
         parser.error(f"refusing to overwrite existing output directory: {output_dir}")
+    # Record the builder commit and refuse a dirty tree (fail fast, before IO).
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=root, text=True,
+        ).strip()
+        dirty = bool(subprocess.check_output(
+            ["git", "status", "--porcelain"], cwd=root, text=True,
+        ).strip())
+    except (OSError, subprocess.CalledProcessError):
+        commit = "unknown"
+        dirty = None
+    if dirty:
+        parser.error("refusing to build sequences from a dirty Git worktree; commit first")
     manifest_path = input_dir / "manifest.json"
     rows_path, windows_path = input_dir / "attacked_rows.parquet", input_dir / "windows.parquet"
     for path in (manifest_path, rows_path, windows_path):
@@ -50,16 +63,6 @@ def main() -> int:
         rows, windows, seed=args.seed,
         stale_threshold_seconds=args.stale_threshold_seconds,
     )
-    try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True,
-        ).strip()
-        dirty = bool(subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=root, text=True,
-        ).strip())
-    except (OSError, subprocess.CalledProcessError):
-        commit = "unknown"
-        dirty = None
     config = {
         "seed": args.seed,
         "input_dir": str(input_dir.relative_to(root)),

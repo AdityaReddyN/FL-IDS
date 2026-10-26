@@ -304,6 +304,7 @@ def test_freeze_holds_the_anchor() -> None:
     assert np.allclose(result.values["lon"][interior], anchor_lon)
     assert set(result.values) == {"lat", "lon"}
     assert result.altitude_change_m.tolist() == [0.0] * 20
+    assert result.anchor_offset == 9
 
 
 def test_latitude_and_altitude_out_of_range_rejections() -> None:

@@ -29,8 +29,15 @@ numeric details not verifiable from the paper are implementation choices.
 - E-003 kept as a pipeline smoke test only: five-seed binary LSTM, mean test
   ROC-AUC 0.5742 on 117 test attack windows; uninterpretable on pilot data.
 - Work now follows the staged plan in `nextSteps.md`, one stage per session.
-  S0 (docs/supersession/hygiene) is done; S1 (source-independent code fixes)
-  is next and is not yet started.
+  S0 (docs/supersession/hygiene) and S1 (source-independent code fixes) are
+  done. S1 added: episode `speed_band` from median velocity and freeze
+  `freeze_anchor_source_row_id`; nullable `onground` carried through (null →
+  ineligible); OverlaySpec rejects < 5 effective rows (gradual@120s); run-plan
+  YAML + `--plan`/`--onset-mode` CLI that refuses a silent pilot; manifest
+  additions (elapsed/chunk seconds, resolved plan, window counts, per-split
+  realized τ, per-overlay aircraft/window counts) + `--progress-log`; sequence
+  builder refuses a dirty tree; D-038 canonical selection naming. Next is S2
+  (quota mode + dataset plan), which is STOP-for-approval.
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;

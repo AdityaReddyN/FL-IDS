@@ -5,6 +5,7 @@ import hashlib
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from flids.attacks.assembler import OverlaySpec, assemble_overlay, assemble_overlays, iter_assembled_chunks, strict_json
 from flids.attacks.schemas import TABLE_NAMES, validate_table
@@ -99,9 +100,9 @@ def test_synthetic_assembler_matches_exact_id_and_selection_golden() -> None:
     tables = assemble_overlay(frame(), overlay(), 7, split_of)
     actual = {name: _bit_digest(getattr(tables, name)) for name in TABLE_NAMES}
     expected = {
-        "attacked_rows": "8e15d3b1d32be4650cface5c65c3c3a00365a545811d404ef3fef35147b17150",
+        "attacked_rows": "81e62e9bb8b7fd19741cf570e324e77f3d341b73bbe69173c9341f95cab85089",
         "step_labels": "0c7def3ca9124954bd792f2ae918f8d4b35b46b140b9b659f6a73759316b21a6",
-        "episodes": "c3e95be3400228b341d3b3473a132d37ba66770166761dc2523f27d363be4b13",
+        "episodes": "04057655c7cc6cd23e7b9fe82f856de978f0f3b43bf06605231d4c8f65606b63",
         "rejected_candidates": "661ed2c232d2f74bb12f741e3804f9621b2fc74bee6819a4c5658623c8b70146",
         "modified_row_provenance": "d3c1f3a1567bccabb24586a81fa57d570029e623fe256b066beef7b33c63bdcc",
         "windows": "78f0be52a10c18ee20519e39d4b89269d858d8705a20464ee2a7aad20b1de385",
@@ -109,6 +110,42 @@ def test_synthetic_assembler_matches_exact_id_and_selection_golden() -> None:
         "overlay_selections": "512237bed2cae411f7f7a778eb0f3c7c5795ab8fe6507663e6a031a330a7c1e0",
     }
     assert actual == expected
+
+
+def test_overlay_rejects_too_few_effective_rows() -> None:
+    # Gradual deviation at 120 s yields only 4 effective rows (< 5).
+    with pytest.raises(ValueError, match="effective"):
+        OverlaySpec(
+            attack_family="gradual_deviation", tier="moderate", subtype="gradual",
+            duration_seconds=120.0, magnitude_m=2500.0, tau=0.1,
+        )
+    # A long gradual episode has enough effective rows and is accepted.
+    OverlaySpec(
+        attack_family="gradual_deviation", tier="moderate", subtype="gradual",
+        duration_seconds=900.0, magnitude_m=2500.0, tau=0.1,
+    )
+
+
+def test_null_onground_is_ineligible_and_carried_through() -> None:
+    data = frame()
+    # Null onground on one row inside the long train segment; the row must be
+    # ineligible (not attacked) and the null must survive to attacked_rows.
+    data["onground"] = data["onground"].astype("object")
+    null_mask = (data.icao24 == "a00001") & (data.segment_id == 0) & (data.time == 300)
+    data.loc[null_mask, "onground"] = np.nan
+
+    tables = assemble_overlay(data, overlay(), 7, split_of)
+    assert_tables_valid(tables)
+
+    attacked = tables.attacked_rows
+    assert str(attacked["onground"].dtype) == "boolean"
+    null_rows = attacked[attacked.source_row_id.isin(
+        data.index[null_mask].to_numpy()
+    )]
+    assert len(null_rows) == 1
+    assert null_rows.onground.isna().all()
+    assert not null_rows.is_attack_row.any()
+    assert null_rows.episode_id.isna().all()
 
 
 def test_segment_chunks_concatenate_to_the_same_assembled_tables() -> None:

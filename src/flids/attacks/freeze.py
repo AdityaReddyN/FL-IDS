@@ -112,7 +112,7 @@ def anchor_from_offsets(
     times,
     max_anchor_age_seconds: float = DEFAULT_MAX_ANCHOR_AGE_SECONDS,
 ):
-    """Return the last fully eligible lat/lon strictly before ``start_offset``.
+    """Return the last fully eligible lat/lon/offset strictly before ``start_offset``.
 
     The anchor is the highest offset ``k < start_offset`` whose
     ``eligible_mask[k]`` is true and whose latitude and longitude are finite.
@@ -120,6 +120,10 @@ def anchor_from_offsets(
     ``max_anchor_age_seconds``; otherwise there is no usable anchor and the
     function returns ``None`` (the caller rejects with
     ``"no_freeze_anchor"``). The start row itself is never used.
+
+    On success the return is ``(anchor_lat, anchor_lon, anchor_offset)`` where
+    ``anchor_offset`` is the segment-local row offset ``k``; the assembler maps
+    it to a global ``source_row_id``.
     """
     lat_in = _one_dimensional(lat, "lat")
     lon_in = _one_dimensional(lon, "lon")
@@ -159,7 +163,7 @@ def anchor_from_offsets(
             continue
         age = time_values[start_offset] - time_values[offset]
         if age <= max_age:
-            return float(lat_in[offset]), float(lon_in[offset])
+            return float(lat_in[offset]), float(lon_in[offset]), int(offset)
         # Earlier eligible rows are older, so no anchor can satisfy the limit.
         return None
     return None

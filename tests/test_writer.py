@@ -35,13 +35,14 @@ def overlay():
     return OverlaySpec("constant_deviation", "moderate", subtype="constant", duration_seconds=100, magnitude_m=5000.0, tau=0.0)
 
 
-def invoke(tmp_path, config, monkeypatch, dirty=False, overlay_specs=None):
+def invoke(tmp_path, config, monkeypatch, dirty=False, overlay_specs=None, resolved_plan=None):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("status: approved\n", encoding="utf-8")
     monkeypatch.setattr(writer, "git_dirty", lambda _root: dirty)
     return writer.write_overlay_tables(
         source_frame(), overlay() if overlay_specs is None else overlay_specs, 17, split_of, config,
         config_path=config_path, output_dir=tmp_path / "new-run",
+        resolved_plan=resolved_plan,
         max_segments_per_chunk=1,
     )
 
@@ -93,11 +94,24 @@ def test_writer_streams_schema_validated_tables_and_manifest(tmp_path, monkeypat
 def test_writer_records_multi_overlay_merge_order_and_selection(tmp_path, monkeypatch):
     constant = OverlaySpec("constant_deviation", "moderate", subtype="constant", duration_seconds=100, magnitude_m=5000.0, tau=1.0)
     gaussian = OverlaySpec("random_gaussian_deviation", "moderate", subtype="gaussian", duration_seconds=100, sigma_m=500.0, tau=1.0)
-    manifest = invoke(tmp_path, {"status": "approved"}, monkeypatch, overlay_specs=[gaussian, constant])
+    plan = [{"family": "random_gaussian_deviation", "tier": "moderate", "duration_seconds": 100, "tau": 1.0},
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 100, "tau": 1.0}]
+    manifest = invoke(tmp_path, {"status": "approved"}, monkeypatch, overlay_specs=[gaussian, constant], resolved_plan=plan)
     assert manifest["overlay_merge_order"] == sorted([constant.overlay_key, gaussian.overlay_key])
     assert set(manifest["overlays"]) == {constant.overlay_key, gaussian.overlay_key}
     assert manifest["tables"]["overlay_selections"]["row_count"] == 6
     assert manifest["merged_totals"]["rejected_by_reason"]["overlay_conflict"] > 0
+    # S1.5 manifest additions.
+    assert manifest["resolved_plan"] == plan
+    assert manifest["total_elapsed_seconds"] >= 0.0
+    assert manifest["chunk_seconds_summary"]["n_chunks"] == 3
+    assert isinstance(manifest["window_counts_by_label_stratum_family_split"], dict)
+    constant_overlay = manifest["overlays"][constant.overlay_key]
+    assert constant_overlay["unique_aircraft"] >= 1
+    assert constant_overlay["window_count"] >= 0
+    assert set(constant_overlay["tau_by_split"]).issubset({"train", "val", "test"})
+    for split_stats in constant_overlay["tau_by_split"].values():
+        assert split_stats["tau_requested"] == 1.0
 
 
 def test_writer_reports_chunk_progress_without_changing_output(tmp_path, monkeypatch):

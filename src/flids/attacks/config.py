@@ -38,8 +38,24 @@ REQUIRED_TOP_LEVEL_KEYS: tuple[str, ...] = (
 )
 
 
+PLAN_FAMILIES: tuple[str, ...] = (
+    "constant_deviation", "random_gaussian_deviation", "gradual_deviation",
+    "altitude_constant_deviation", "replay_partial_field", "replay_full_field",
+    "freeze_fixed_value",
+)
+PLAN_TIERS: tuple[str, ...] = (
+    "subtle", "moderate", "blatant", "gross_positive_control",
+)
+PLAN_ONSET_MODES: tuple[str, ...] = ("linear_mix", "abrupt")
+PLAN_ALTITUDE_VARIANTS: tuple[str, ...] = ("baro_only", "baro_plus_geo")
+
+
 class ConfigError(ValueError):
     """Raised when an attack configuration is malformed."""
+
+
+class PlanError(ConfigError):
+    """Raised when a run plan file is malformed."""
 
 
 class UnapprovedConfigError(ConfigError):
@@ -89,3 +105,54 @@ def load_approved_config(
     validate_config(config, required_keys)
     require_approved(config)
     return config
+
+
+def validate_run_plan(plan: Mapping[str, Any]) -> None:
+    """Validate a run-plan mapping (overlay list for one generation run).
+
+    A plan lists the overlays for one run: each overlay names a ``family``,
+    ``tier`` and ``duration_seconds``, with optional ``onset_mode``,
+    ``altitude_variant`` and ``episodes_per_segment``, and exactly one of
+    ``tau`` (Bernoulli prevalence mode) or ``quota_target`` (ranked quota mode,
+    implemented in Stage S2). The format accepts both; building a quota overlay
+    is deferred to S2.
+    """
+    if not isinstance(plan, Mapping):
+        raise PlanError("run plan must be a mapping")
+    if plan.get("plan_version") != 1:
+        raise PlanError("run plan requires plan_version: 1")
+    overlays = plan.get("overlays")
+    if not isinstance(overlays, list) or not overlays:
+        raise PlanError("run plan requires a non-empty 'overlays' list")
+    for index, entry in enumerate(overlays):
+        where = f"overlays[{index}]"
+        if not isinstance(entry, Mapping):
+            raise PlanError(f"{where} must be a mapping")
+        family = entry.get("family")
+        if family not in PLAN_FAMILIES:
+            raise PlanError(f"{where}.family must be one of {PLAN_FAMILIES}; got {family!r}")
+        if entry.get("tier") not in PLAN_TIERS:
+            raise PlanError(f"{where}.tier must be one of {PLAN_TIERS}; got {entry.get('tier')!r}")
+        if "duration_seconds" not in entry:
+            raise PlanError(f"{where} requires duration_seconds")
+        onset = entry.get("onset_mode", "linear_mix")
+        if onset not in PLAN_ONSET_MODES:
+            raise PlanError(f"{where}.onset_mode must be one of {PLAN_ONSET_MODES}; got {onset!r}")
+        variant = entry.get("altitude_variant", "baro_only")
+        if variant not in PLAN_ALTITUDE_VARIANTS:
+            raise PlanError(f"{where}.altitude_variant must be one of {PLAN_ALTITUDE_VARIANTS}; got {variant!r}")
+        has_tau = entry.get("tau") is not None
+        has_quota = entry.get("quota_target") is not None
+        if has_tau == has_quota:
+            raise PlanError(f"{where} must set exactly one of 'tau' or 'quota_target'")
+
+
+def load_run_plan(path: str | Path) -> dict[str, Any]:
+    """Read and validate a run-plan YAML file."""
+    plan_path = Path(path)
+    with plan_path.open("r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle)
+    if not isinstance(data, dict):
+        raise PlanError(f"{plan_path} must contain a YAML mapping")
+    validate_run_plan(data)
+    return data

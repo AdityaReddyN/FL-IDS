@@ -25,6 +25,38 @@ class WriterError(RuntimeError):
     """Raised when output guards or table writing fail."""
 
 
+def _chunk_seconds_summary(seconds: Sequence[float]) -> dict:
+    """Return min/median/p95/max of per-chunk wall-clock seconds."""
+    values = sorted(float(value) for value in seconds)
+    if not values:
+        return {"n_chunks": 0, "min": None, "median": None, "p95": None, "max": None}
+
+    def _quantile(points: list[float], q: float) -> float:
+        if len(points) == 1:
+            return points[0]
+        position = q * (len(points) - 1)
+        low = int(position)
+        high = min(low + 1, len(points) - 1)
+        frac = position - low
+        return points[low] + (points[high] - points[low]) * frac
+
+    return {
+        "n_chunks": len(values),
+        "min": values[0],
+        "median": _quantile(values, 0.5),
+        "p95": _quantile(values, 0.95),
+        "max": values[-1],
+    }
+
+
+def _window_lsfs_to_nested(counts: Mapping[tuple, int]) -> dict:
+    """Nest label x stratum x family x split window counts for the manifest."""
+    nested: dict = {}
+    for (label, stratum, family, split_name), count in sorted(counts.items()):
+        nested.setdefault(label, {}).setdefault(stratum, {}).setdefault(family, {})[split_name] = int(count)
+    return nested
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -42,6 +74,7 @@ def write_overlay_tables(
     *,
     config_path: str | Path,
     output_dir: str | Path,
+    resolved_plan: Sequence[Mapping] | None = None,
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
     progress_callback: Callable[[Mapping], None] | None = None,
@@ -83,6 +116,15 @@ def write_overlay_tables(
         "tier": item.tier, "tau_requested": item.tau,
     } for item in overlays}
     selection["_merged"] = {"attack_rows": 0, "effective_rows": 0, "accepted_episodes": 0, "rejected_by_reason": {}}
+    # Per-overlay aircraft/window counts and per-split selection counts (S1.5).
+    overlay_aircraft = {str(item.overlay_key): set() for item in overlays}
+    overlay_windows = {str(item.overlay_key): 0 for item in overlays}
+    per_split = {
+        str(item.overlay_key): {} for item in overlays
+    }  # overlay_key -> split -> {eligible, selected, chosen}
+    # windows by label x stratum x family x split (family "none" for normals).
+    window_lsfs: dict[tuple[str, str, str, str], int] = {}
+    chunk_seconds: list[float] = []
     validator_results = {name: "passed" for name in TABLE_NAMES}
     plausibility_episodes = []
     unavailable_checks = []
@@ -125,6 +167,29 @@ def write_overlay_tables(
                 item["eligible_segments"] += int(group.eligible.sum())
                 item["selected_segments"] += int(group.selected.sum())
                 item["chosen_segments"] += int(group.chosen.sum())
+                split_counts = per_split[str(key)]
+                for split_name, split_group in group.groupby("split", sort=False):
+                    entry = split_counts.setdefault(str(split_name), {"eligible": 0, "selected": 0, "chosen": 0})
+                    entry["eligible"] += int(split_group.eligible.sum())
+                    entry["selected"] += int(split_group.selected.sum())
+                    entry["chosen"] += int(split_group.chosen.sum())
+            # Per-overlay aircraft and window counts, via episode_id -> overlay_key.
+            if not chunk.episodes.empty:
+                episode_overlay = dict(zip(chunk.episodes.episode_id.tolist(), chunk.episodes.overlay_key.tolist()))
+                for icao24, overlay_key in zip(chunk.episodes.icao24.tolist(), chunk.episodes.overlay_key.tolist()):
+                    overlay_aircraft[str(overlay_key)].add(str(icao24))
+                if not chunk.windows.empty:
+                    window_overlay = chunk.windows.episode_id.map(episode_overlay)
+                    for overlay_key, count in window_overlay.dropna().value_counts().items():
+                        overlay_windows[str(overlay_key)] += int(count)
+            # Windows by label x stratum x family x split.
+            if not chunk.windows.empty:
+                grouped = chunk.windows.assign(
+                    _family=chunk.windows.attack_family.fillna("none")
+                ).groupby(["label", "stratum", "_family", "split"], sort=False).size()
+                for (label, stratum, family, split_name), count in grouped.items():
+                    gkey = (str(label), str(stratum), str(family), str(split_name))
+                    window_lsfs[gkey] = window_lsfs.get(gkey, 0) + int(count)
             merged = selection["_merged"]
             merged["attack_rows"] += int(chunk.attacked_rows.is_attack_row.sum())
             merged["effective_rows"] += int((chunk.attacked_rows.ramp_multiplier >= 0.5).sum())
@@ -152,6 +217,7 @@ def write_overlay_tables(
                 for reason, count in chunk.rejected_candidates.reason.value_counts().items():
                     merged["rejected_by_reason"][str(reason)] = merged["rejected_by_reason"].get(str(reason), 0) + int(count)
             segments_processed += len(chunk.segments)
+            chunk_seconds.append(time.perf_counter() - chunk_started_at)
             if progress_callback is not None:
                 progress_callback({
                     "event": "chunk_complete",
@@ -207,15 +273,33 @@ def write_overlay_tables(
         dirty=False,
         git_commit=None,
     )
+    total_elapsed_seconds = time.perf_counter() - started_at
     manifest.update({
         "output_directory": str(target),
         "overlay_merge_order": [item.overlay_key for item in overlays],
         "overlay_merge_scope": "lexicographic_overlay_key; at_most_one_selected_overlay_per_segment; conflicts_logged_as_overlay_conflict",
+        "resolved_plan": [dict(entry) for entry in resolved_plan] if resolved_plan is not None else None,
+        "total_elapsed_seconds": total_elapsed_seconds,
+        "chunk_seconds_summary": _chunk_seconds_summary(chunk_seconds),
+        "window_counts_by_label_stratum_family_split": _window_lsfs_to_nested(window_lsfs),
         "overlays": {
             str(item.overlay_key): {
                 **selection[str(item.overlay_key)],
+                "unique_aircraft": len(overlay_aircraft[str(item.overlay_key)]),
+                "window_count": overlay_windows[str(item.overlay_key)],
                 "realized_tau": (selection[str(item.overlay_key)]["selected_segments"] / selection[str(item.overlay_key)]["eligible_segments"] if selection[str(item.overlay_key)]["eligible_segments"] else 0.0),
                 "realized_chosen_fraction_of_eligible": (selection[str(item.overlay_key)]["chosen_segments"] / selection[str(item.overlay_key)]["eligible_segments"] if selection[str(item.overlay_key)]["eligible_segments"] else 0.0),
+                "tau_by_split": {
+                    split_name: {
+                        "tau_requested": float(item.tau),
+                        "eligible_segments": counts["eligible"],
+                        "selected_segments": counts["selected"],
+                        "chosen_segments": counts["chosen"],
+                        "realized_tau": (counts["selected"] / counts["eligible"] if counts["eligible"] else 0.0),
+                        "realized_chosen_fraction_of_eligible": (counts["chosen"] / counts["eligible"] if counts["eligible"] else 0.0),
+                    }
+                    for split_name, counts in sorted(per_split[str(item.overlay_key)].items())
+                },
             } for item in overlays
         },
         "merged_totals": selection["_merged"],

@@ -83,7 +83,7 @@ def test_anchor_is_the_last_eligible_row_strictly_before_start() -> None:
     times = np.array([0.0, 10.0, 20.0, 30.0])
 
     anchor = anchor_from_offsets(lat, lon, eligible, 3, times)
-    assert anchor == (42.0, 12.0)
+    assert anchor == (42.0, 12.0, 2)
 
 
 def test_anchor_skips_ineligible_rows() -> None:
@@ -92,7 +92,7 @@ def test_anchor_skips_ineligible_rows() -> None:
     eligible = np.array([True, False, False, True])
     times = np.array([0.0, 10.0, 20.0, 30.0])
 
-    assert anchor_from_offsets(lat, lon, eligible, 3, times) == (40.0, 10.0)
+    assert anchor_from_offsets(lat, lon, eligible, 3, times) == (40.0, 10.0, 0)
 
 
 def test_anchor_too_old_returns_none() -> None:
@@ -104,7 +104,7 @@ def test_anchor_too_old_returns_none() -> None:
     assert anchor_from_offsets(lat, lon, eligible, 3, times) is None
     assert anchor_from_offsets(
         lat, lon, eligible, 3, times, max_anchor_age_seconds=100.0
-    ) == (40.0, 10.0)
+    ) == (40.0, 10.0, 0)
 
 
 def test_anchor_age_limit_is_inclusive() -> None:
@@ -115,7 +115,7 @@ def test_anchor_age_limit_is_inclusive() -> None:
 
     assert anchor_from_offsets(
         lat, lon, eligible, 3, times, max_anchor_age_seconds=30.0
-    ) == (40.0, 10.0)
+    ) == (40.0, 10.0, 0)
 
 
 def test_anchor_missing_returns_none() -> None:
@@ -137,7 +137,7 @@ def test_anchor_skips_non_finite_values() -> None:
     eligible = np.array([True, True, True, True])
     times = np.array([0.0, 10.0, 20.0, 30.0])
 
-    assert anchor_from_offsets(lat, lon, eligible, 3, times) == (42.0, 12.0)
+    assert anchor_from_offsets(lat, lon, eligible, 3, times) == (42.0, 12.0, 2)
 
 
 def test_anchor_validates_arguments() -> None:

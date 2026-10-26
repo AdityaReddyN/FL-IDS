@@ -140,6 +140,7 @@ class EpisodeResult:
     horizontal_displacement_m: np.ndarray
     altitude_change_m: np.ndarray
     summary: dict
+    anchor_offset: int | None = None
 
 
 def _finite_number(value, name: str, minimum=None) -> float:
@@ -527,6 +528,7 @@ def build_episode(
     }
     delays = None
     reason = None
+    freeze_anchor_offset = None
 
     if spec.attack_family in HORIZONTAL_FAMILIES:
         modified, realized, reason = _horizontal_episode(
@@ -600,6 +602,7 @@ def build_episode(
                 positions,
                 "no_freeze_anchor",
             )
+        freeze_anchor_offset = anchor[2]
         result = freeze_lat_lon(
             lat_full[start_offset:stop],
             lon_full[start_offset:stop],
@@ -737,4 +740,5 @@ def build_episode(
         summary=_summary(
             realized, horizontal, altitude_change, delays
         ),
+        anchor_offset=freeze_anchor_offset,
     )

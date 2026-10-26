@@ -59,6 +59,15 @@ def test_row_eligible_rejects_onground() -> None:
     assert mask.sum() == len(df) - 1
 
 
+def test_row_eligible_rejects_null_onground() -> None:
+    df = make_segment()
+    df["onground"] = df["onground"].astype("object")
+    df.loc[2, "onground"] = np.nan
+    mask = row_eligible(df, REQUIRED_FIELDS["horizontal_manipulation"])
+    assert not mask[2]
+    assert mask.sum() == len(df) - 1
+
+
 def test_row_eligible_contact_lag_bounds_and_missing_flag() -> None:
     df = make_segment()
     df.loc[1, "contact_lag_seconds"] = 30.0

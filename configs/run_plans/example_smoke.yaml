@@ -1,0 +1,34 @@
+# Example run plan for scripts/generate_attack_v3.py --plan.
+#
+# This is a FORMAT EXAMPLE, not an approved dataset plan. The approved datasets
+# (per-cell evaluation, mixed realistic-prevalence, Track B training) are
+# proposed in Stage S2 of nextSteps.md and decided by the human at Stage S4.
+#
+# Each overlay sets family, tier, duration_seconds and exactly one of:
+#   - tau: per-eligible-segment Bernoulli selection probability (realistic mode)
+#   - quota_target: {episodes, unique_aircraft} ranked quota (implemented in S2)
+# Optional per-overlay fields: onset_mode (linear_mix|abrupt, default linear_mix),
+# altitude_variant (baro_only|baro_plus_geo, default baro_only), episodes_per_segment.
+#
+# Note: gradual deviation needs >= 5 effective rows, so it is invalid at 120 s
+# (OverlaySpec raises); use a long duration (600/900 s) for gradual.
+plan_version: 1
+name: example_smoke
+description: Format example only; do not use for evaluation or the paper.
+overlays:
+  - family: constant_deviation
+    tier: moderate
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.005
+    episodes_per_segment: 1
+  - family: gradual_deviation
+    tier: moderate
+    duration_seconds: 900
+    onset_mode: abrupt
+    tau: 0.01
+  - family: altitude_constant_deviation
+    tier: moderate
+    duration_seconds: 120
+    altitude_variant: baro_only
+    tau: 0.005

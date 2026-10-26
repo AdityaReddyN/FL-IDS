@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 
 from .eligibility import REQUIRED_FIELDS, eligible_starts, pair_valid, replay_source_offsets, row_eligible
-from .episode import EpisodeSpec, HORIZONTAL_FAMILIES, REPLAY_FAMILIES, build_episode
+from .episode import EpisodeSpec, HORIZONTAL_FAMILIES, MIN_EFFECTIVE_ROWS, REPLAY_FAMILIES, build_episode
+from .kinematics import speed_band
+from .ramps import effective_row_count, ramp_multipliers
 from .keys import add_natural_keys
 from .placement import filter_starts_by_span, place_episodes, rows_for_duration
 from .seeding import episode_rng, overlay_selection_rng, parameter_rng, placement_rng
@@ -50,6 +52,46 @@ class OverlaySpec:
             object.__setattr__(self, "overlay_key", "|".join(parts))
         elif not self.overlay_key:
             raise ValueError("overlay_key must be a non-empty string")
+        _validate_effective_capacity(self)
+
+
+def _realized_multipliers(overlay: "OverlaySpec", n_rows: int) -> np.ndarray:
+    """Realized per-row multipliers for the overlay's onset and family.
+
+    Mirrors :func:`episode.build_episode`: gradual deviation scales the ramp by
+    a linear growth ``g_t`` (``a_t * g_t``); every other family uses the ramp
+    multipliers directly. Used only to validate effective-row capacity.
+    """
+    multipliers, _positions = ramp_multipliers(n_rows, overlay.ramp_rows, overlay.onset_mode)
+    if overlay.attack_family == "gradual_deviation":
+        fractions = np.ones(1, dtype=float) if n_rows == 1 else np.arange(n_rows, dtype=float) / (n_rows - 1)
+        return multipliers * fractions
+    return multipliers
+
+
+def _validate_effective_capacity(overlay: "OverlaySpec") -> None:
+    """Reject an overlay whose realized multipliers yield < 5 effective rows.
+
+    This catches configurations such as gradual deviation at 120 s, whose linear
+    growth leaves too few rows at ``a_t >= 0.5`` to form a measurable episode
+    (D-023). A too-short onset that :func:`ramp_multipliers` itself rejects is
+    reported the same way.
+    """
+    n_rows = rows_for_duration(overlay.duration_seconds)
+    try:
+        realized = _realized_multipliers(overlay, n_rows)
+    except ValueError as error:
+        raise ValueError(
+            f"overlay {overlay.overlay_key!r} cannot form an onset at "
+            f"duration {overlay.duration_seconds} s ({n_rows} rows): {error}"
+        ) from error
+    effective = effective_row_count(realized)
+    if effective < MIN_EFFECTIVE_ROWS:
+        raise ValueError(
+            f"overlay {overlay.overlay_key!r} yields only {effective} effective "
+            f"row(s) at duration {overlay.duration_seconds} s ({n_rows} rows); "
+            f"at least {MIN_EFFECTIVE_ROWS} are required"
+        )
 
 
 @dataclass(frozen=True)
@@ -73,6 +115,18 @@ def _finite_median(values) -> float:
     array = np.asarray(values, dtype=float)
     finite = array[np.isfinite(array)]
     return float(np.median(finite)) if finite.size else float("nan")
+
+
+def _episode_speed_band(seg, start, count) -> str:
+    """Speed band of the median velocity over the episode rows.
+
+    Returns ``"unknown"`` only when every episode-row velocity is missing.
+    """
+    velocity = seg.velocity.to_numpy(dtype=float)[start:start + count]
+    finite = velocity[np.isfinite(velocity)]
+    if not finite.size:
+        return "unknown"
+    return speed_band(float(np.median(finite)))
 
 
 def _episode_id(icao24, segment_id, index, overlay_key):
@@ -205,7 +259,9 @@ def _assemble_keyed(
                     active_offsets=np.arange(start,start+count,dtype=np.int64)[active_delays]
                     replay_source_ids[active_offsets]=source_ids[sources[active_offsets]]
                     replay_delays[active_offsets]=result.delays[active_delays]
-                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band="unknown",altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=None,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
+                _band=_episode_speed_band(seg,start,count)
+                _freeze_src=int(source_ids[result.anchor_offset]) if (overlay.attack_family=="freeze_fixed_value" and result.anchor_offset is not None) else None
+                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band=_band,altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=_freeze_src,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 changed_by_row = result.changed_fields
                 changed_indices = np.fromiter((i for i, fields in enumerate(changed_by_row) if fields), dtype=np.int64)
                 for offset in changed_indices:
@@ -222,7 +278,7 @@ def _assemble_keyed(
             row_columns[f"orig_{field}"] = seg[field].to_numpy(dtype=float, copy=True)
             row_columns[f"mod_{field}"] = modified[field]
         row_columns.update({
-            "onground": seg.onground.to_numpy(dtype=bool),
+            "onground": pd.array(seg.onground, dtype="boolean"),
             "contact_lag_seconds": seg.contact_lag_seconds.to_numpy(dtype=float),
             "contact_lag_missing": seg.contact_lag_missing.to_numpy(dtype=bool),
             "is_attack_row": attack_mask,
