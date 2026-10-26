@@ -41,7 +41,7 @@ The project built Phase 2 and Phase 3 on the **seed-42 pilot** (7 families, mode
 **STOP.**
 
 ### Stage 1 — Code fixes (source-independent)
-- [ ] **S1** (tests first; say which golden digests intentionally change)
+- [x] **S1** (commit df2f7ba) (tests first; say which golden digests intentionally change)
 1. `episodes.speed_band` = `kinematics.speed_band` of the **median velocity** over the episode rows ("unknown" only if all missing). `anchor_from_offsets` also returns the anchor offset; `episodes.freeze_anchor_source_row_id` = global `source_row_id` of the anchor (null for non-freeze).
 2. `onground`: write `scripts/check_onground_nulls.py` (read-only, do NOT run; null counts per split on the cleaned table). Make `onground` nullable in `schemas.py`; null → ineligible for every family; carry nulls to outputs; remove the `bool()` coercion in the assembler. NaN-fixture test.
 3. `OverlaySpec` validation: reject specs whose `n_rows` cannot yield ≥5 effective rows (use `ramps.effective_row_count` with realized multipliers); includes gradual at 120 s.
