@@ -545,3 +545,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** None new (implements D-041).
 **Next steps:** (1) Human runs `build_hdd_dataset.py` then `validate_clean_source.py`; paste the validation report. (2) S6 Gate 1b calibration on the HDD clean (read-only; human-run). (3) S7 generation + content validation.
 **Questions for human:** None; run the builder + validator and share the report. S5 stops here.
+
+### 2026-10-26 — Session 5 (cont.) — Claude Code — Phase 1 (S5 build run)
+**Goal:** Record the human-run HDD build + validation outcome.
+**Done:** No code change. The human ran `scripts/build_hdd_dataset.py` then `scripts/validate_clean_source.py`.
+**Ran / verified:** Build produced `data/processed/hdd_clean_v1/` (ignored): 207,010,888 rows (raw_rows_read == rows, i.e. no rows dropped), 79,755 aircraft, 871,802 segments, 64 parts, span 2019-11-18T00:00:00–2019-12-09T23:59:50 UTC. Global hashed-`icao24` split: train 55,639 / val 12,133 / test 11,983 (69.8/15.2/15.0%). Validator `results/hdd_clean_v1_validation/report.json` passed all five checks (schema_matches_contract, natural_key_unique, sorted_by_icao_time, within_segment_cadence_10s, split_coverage_and_disjoint). Within-segment dt counts: 10 s 205,684,267; 20 s 437,658; 30 s 17,161 (modal 10 s). Missingness: geoaltitude 40,132,650; heading 28,025,303; velocity 28,025,303; vertrate 27,725,039; lat/lon 24,742,354 each; baroaltitude 15,107,978. Velocity >400 m/s: 17,019 rows (preserved, flagged). Numbers copied from the manifest and report files.
+**NOT verified:** Per-cell eligibility capacity under these missingness rates (geoaltitude ~19% missing affects baro_plus_geo altitude eligibility), Gate 1b thresholds, and any attack generation — all later stages.
+**Results:** `data/processed/hdd_clean_v1/manifest.json` and `results/hdd_clean_v1_validation/report.json` are the authoritative records (ignored, not committed).
+**Problems / surprises:** None. All raw rows were retained (clean time/icao24 everywhere), consistent with the audit's 0 duplicate (icao24,time) rows.
+**Decisions made:** None new (implements D-041).
+**Next steps:** (1) S6 Gate 1b calibration on `data/processed/hdd_clean_v1/` with its split (read-only; human-run; writes `results/gate1b_calibration_v2.json`). (2) Re-approve tier/magnitude parameters on the HDD source before generation. (3) S7 generation + content validation.
+**Questions for human:** None; S5 complete. S6 is next (plan then go).

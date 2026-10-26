@@ -70,8 +70,17 @@ numeric details not verifiable from the paper are implementation choices.
   `data/processed/hdd_clean_v1/` + global hashed split + manifest), and
   `scripts/validate_clean_source.py` (schema/key-uniqueness/sorted/10 s-cadence/
   split-coverage + vs-old-source table). `build_dataset.py` left untouched to
-  preserve the E-001 reproduction. Not run on real data. Next: human runs the
-  builder + validator, then S6 (Gate 1b calibration on the HDD source).
+  preserve the E-001 reproduction.
+- S5 ran successfully on the real source. `data/processed/hdd_clean_v1/`
+  (ignored): 207,010,888 rows (all raw rows kept), 79,755 aircraft, 871,802
+  segments, 64 parts, span 2019-11-18 00:00 → 2019-12-09 23:59:50 UTC. Global
+  hashed-`icao24` split train 55,639 / val 12,133 / test 11,983. Within-segment
+  cadence 99.8% at 10 s (rest 20/30 s, all ≤30 s). Missingness: geoaltitude
+  19.4%, heading/velocity 13.5%, vertrate 13.4%, lat/lon 11.9%, baroaltitude
+  7.3%. 17,019 rows have velocity >400 m/s (preserved, flagged). The validator
+  (`results/hdd_clean_v1_validation/report.json`) passed all five checks:
+  schema, natural-key uniqueness, sorted order, 10 s cadence, split
+  coverage/disjointness. Next: S6 Gate 1b calibration on this HDD clean.
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;
