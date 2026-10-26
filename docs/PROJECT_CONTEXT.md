@@ -1,8 +1,8 @@
 # PROJECT_CONTEXT.md
 
-> **Current snapshot; history is in `PROGRESS_LOG.md`.** Updated 2026-10-23,
-> Session 4p. Recheck branch, worktree, ignored outputs, and live configs before
-> acting.
+> **Current snapshot; history is in `PROGRESS_LOG.md`.** Updated 2026-10-26
+> (S0, D-036/D-037). Recheck branch, worktree, ignored outputs, and live configs
+> before acting.
 
 ## Mission and scientific framing
 
@@ -14,19 +14,23 @@ numeric details not verifiable from the paper are implementation choices.
 
 ## Current state
 
-- Branch at handoff: `phase1-generation`. Phase 1 seed-42 attack generation was
-  accepted at Gate 1 (D-032); Phase 2 is built. The human authorized Phase 3
-  despite the E-002 shortcut audit remaining informative (D-034). That is
-  authorization to proceed, not an audit pass.
-- E-002: summary-statistic shortcut ROC-AUC 0.6021 on natural validation and
-  0.6045 on the missingness-matched slice; position and missingness controls
-  are near chance only in their reported settings. Keep this caveat attached
-  to downstream results.
-- E-003: five-seed binary LSTM on the existing two-hour v3 sequence dataset;
-  test ROC-AUC mean 0.5742 (95% t-interval half-width 0.0276), PR-AUC 0.00443,
-  macro-F1@0.5 0.4380, and normal FPR@0.5 0.2245. Pipeline validation only;
-  this does not meet the requested 0.9 ROC-AUC target. A seed-0 checkpoint is
-  in ignored `results/E-003/binary_lstm/seed0_checkpointed/`.
+- Branch: `phase1-generation`. **D-036 reclassified the seed-42 Stage C run
+  (`stage1_seed_42_retry4`, E-004) as a PILOT** and superseded the D-032 Gate 1
+  acceptance; Gate 1 is pending again. The pilot is one tier (moderate),
+  τ=0.005, 120 s episodes, baro_only altitude, 263 accepted episodes, zero
+  gradual episodes. It must not be used for evaluation, model selection, or any
+  paper number.
+- Phase 2 and Phase 3 were built on the pilot, so **E-002 and E-003 are
+  PILOT-DERIVED (D-036), not results.** The D-034 Phase 3 authorization rested
+  on pilot data and is suspended. No further Phase 2/3 work until the dataset
+  plan is approved (S2 in `nextSteps.md`).
+- E-002 kept as a design warning only: per-feature-summary shortcut ROC-AUC
+  0.6021 natural / 0.6045 matched (did not pass the near-chance criterion).
+- E-003 kept as a pipeline smoke test only: five-seed binary LSTM, mean test
+  ROC-AUC 0.5742 on 117 test attack windows; uninterpretable on pilot data.
+- Work now follows the staged plan in `nextSteps.md`, one stage per session.
+  S0 (docs/supersession/hygiene) is done; S1 (source-independent code fixes)
+  is next and is not yet started.
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;

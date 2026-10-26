@@ -1,4 +1,6 @@
-import torch
+import pytest
+
+torch = pytest.importorskip("torch")
 
 from flids.models.lstm import LSTMClassifier, save_checkpoint
 

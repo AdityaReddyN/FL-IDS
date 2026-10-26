@@ -4,7 +4,7 @@ Tick boxes as tasks complete. Do not start a phase until the previous gate is
 approved by the human. Add new tasks freely, but never delete old ones (strike
 through with `~~` and explain in PROGRESS_LOG).
 
-**Current phase: 3 — Phase 3 is authorized under D-034 with the E-002 shortcut caveat retained. Phase 3 results remain pipeline validation until the HDD source and pipeline are audited; no later phase gate is approved by this status.**
+**Current phase: 1 (regeneration) — D-036 reclassified the seed-42 Stage C run as a PILOT and superseded the D-032 Gate 1 acceptance; Gate 1 is pending again. Phase 2/3 artifacts (E-002, E-003) are pilot-derived and are not results. Work proceeds stage-by-stage per `nextSteps.md`; no later phase gate is approved.**
 
 ## Phase 0 — Housekeeping and baseline reproduction
 - [x] `requirements.txt` with pinned versions
@@ -82,7 +82,7 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Visual sanity plot script (example trajectories before/after)
 - [x] Multi-overlay conflict resolution and per-overlay selection evidence table (D-031)
 - [x] Stage C: generate seed 42 into `data/attack_generation_v3/stage1_seed_42_retry4/`; all eight Parquet files, manifest row counts/hashes, clean commit, and schemas verified; six of seven family plots written because all 48 selected gradual candidates were rejected as `insufficient_effective_rows`
-- [x] **GATE 1: human accepts seed-42 manifest/report/plots and authorizes Phase 2 (D-032); zero accepted gradual episodes remain explicitly documented**
+- [ ] **GATE 1:** ~~human accepts seed-42 manifest/report/plots and authorizes Phase 2 (D-032)~~ SUPERSEDED by D-036 — the seed-42 run is reclassified a PILOT (one tier, τ=0.005, 120 s, baro_only, zero gradual episodes); Gate 1 is pending again and must be re-decided on non-pilot datasets.
 
 ## Phase 2 — Sequence dataset v3 + shortcut audit
 - [x] Window builder from attacked row table, using Stage C per-step + per-window truth labels
@@ -96,10 +96,10 @@ through with `~~` and explain in PROGRESS_LOG).
 - [x] Retain `onground` and a configured stale-data flag as auxiliary diagnostic arrays (30-second threshold is an implementation choice).
 - [x] Keep replay and fixed-value freeze as separate multiclass labels.
 - [x] Exclude `contact_lag_seconds` from model inputs pending leakage review; it is retained only as an auxiliary diagnostic.
-- [x] **GATE 2: human authorized progression with E-002 caveats retained; audit itself did not pass the near-chance summary-stat criterion (D-034)**
+- [ ] **GATE 2:** ~~human authorized progression with E-002 caveats retained (D-034)~~ SUPERSEDED by D-036 — the D-034 authorization rested on pilot data and is suspended; E-002 did not pass the near-chance criterion and is pilot-derived. Gate 2 is a separate human review on a non-pilot dataset.
 
 ## Phase 3 — Centralized baselines
-- [x] Initial binary LSTM on current v3 data, five seeds (E-003; pipeline validation only; ROC-AUC 0.5742 mean)
+- [x] Initial binary LSTM on current v3 data, five seeds (E-003; PILOT-DERIVED per D-036; not a result, not for the paper)
 - [ ] HDD source audit: archive schema, coverage, cadence, duplicates, missingness, aircraft recurrence (read-only first)
 - [ ] Decide and test cadence-compatible time-based attack/window semantics or deterministic resampling before HDD generation
 - [ ] Classical baselines (LR / RF on engineered features)

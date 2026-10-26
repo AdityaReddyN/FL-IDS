@@ -1,5 +1,10 @@
 # FL-IDS handoff
 
+> **SUPERSEDED (2026-10-26, D-036).** This file is kept for history only. The
+> live navigation aid is `docs/MASTER_CONTEXT.md` (human-maintained) and the
+> staged plan in `nextSteps.md`. Content below predates the pilot reclassification
+> and must not be treated as current state or as gate authorization.
+
 **Snapshot:** 2026-10-23, Session 4p. This is a navigation aid, not permission
 to cross a gate. Re-read `AGENTS.md`, current docs, Git branch/status, and live
 configs at the start of new work.

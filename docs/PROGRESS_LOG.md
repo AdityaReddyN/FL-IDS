@@ -479,3 +479,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-035 records the staged approach and states that the cadence must be audited before selecting time-based semantics or deterministic resampling. No scientific parameter or attack behavior was changed.
 **Next steps:** (1) Run the planned read-only all-archive schema/cadence/coverage audit and save a small report outside immutable paths. (2) Based on measured cadence, propose and test the resampling/time-semantics choice before any HDD attack generation. (3) Pre-register any experiment before running it and keep centralized model validation separate from later FL gates.
 **Questions for human:** None for the documented next step; pause before any material change to approved attack semantics or any gate transition.
+
+### 2026-10-26 — Session 5 — Claude Code — Phase 1 (S0)
+**Goal:** Execute Stage S0 of `nextSteps.md` (docs, supersession, hygiene).
+**Done:** Added `.claude/` to `.gitignore`. Appended D-036 (seed-42 run reclassified a PILOT; supersedes D-032 Gate 1 acceptance; E-002/E-003 pilot-derived) and D-037 (τ is a per-eligible-segment Bernoulli probability, not Li et al. Eq. 10; D-028 supersedes the Eq. 10 part of D-004). Registered the pilot run as E-004 from its `manifest.json` only, and marked E-002/E-003 PILOT-DERIVED. Rewrote `docs/LIMITATIONS.md`. Tidied `docs/ROADMAP.md` (Current phase → 1 regeneration; struck the pilot-resting Gate 1/Gate 2 ticks with D-036 pointers; marked the E-003 line pilot-derived). Refreshed `docs/PROJECT_CONTEXT.md` Current state. Added a superseded banner to `docs/CHAT_HANDOFF.md`. Added `nextSteps.md` to the AGENTS.md §2 reading list. Made `tests/test_phase3_lstm.py` use `pytest.importorskip("torch")`.
+**Ran / verified:** `.venv/Scripts/python.exe -m pytest -q` → **283 passed in 42.41s**. All experiment numbers (E-004 counts, rejections, realized τ) were copied from `data/attack_generation_v3/stage1_seed_42_retry4/manifest.json` only.
+**NOT verified:** No data or results were touched; no generation, training, calibration, or semantic validation was run. `docs/MASTER_CONTEXT.md` does not exist yet (human to add); `CHAT_HANDOFF`'s forward reference to it is intentional. `nextSteps.md` kept at repo root (prompt referenced `docs/NEXT_STEPS.md`).
+**Results:** No new metrics. E-004 registered (pilot). E-002/E-003 downgraded to pilot-derived.
+**Problems / surprises:** None. The W1 edits started earlier this session matched S0 items 1–5 and were folded in.
+**Decisions made:** D-036, D-037.
+**Next steps:** (1) S1 — source-independent code fixes (speed_band, freeze anchor, nullable onground, OverlaySpec effective-row validation, run plans/onset_mode, manifest additions, dirty-tree guard on sequence builder). (2) Then S2 quota mode + dataset plan. (3) Stop at each STOP.
+**Questions for human:** Confirm the two defaults above (file location of `nextSteps.md`; MASTER_CONTEXT forward reference) or redirect.

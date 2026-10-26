@@ -46,7 +46,7 @@ files, never estimated.
   not an operational IDS result.
 
 ### E-002 — Phase 2 v3 sequence and shortcut pipeline validation
-- **Status:** done (pipeline audit did not meet the Gate 2 near-chance criterion)
+- **Status:** done (pipeline audit did not meet the Gate 2 near-chance criterion); **PILOT-DERIVED (D-036): computed on the seed-42 pilot; not a result, not for the paper**
 - **Date:** 2026-10-23
 - **Phase:** 2
 - **Hypothesis / purpose:** Build sequence arrays from the verified seed-42 Stage C tables using the fixed aircraft split, train-only preprocessing, explicit missing masks, missingness-matched binary-balanced train indices, and unchanged realistic-prevalence validation/test splits; run natural and conditioned missingness, within-segment-position, and per-feature-summary shortcut baselines.
@@ -60,7 +60,7 @@ files, never estimated.
 - **Conclusion / caveats:** Pipeline validation only on one seed and a two-hour decoded-state-vector source with synthetic labels. Matching makes missingness-only and position-only audits near chance, but per-feature summaries remain informative; realistic val/test retain natural prevalence/missingness. Gate 2 is not passed, and no Phase 3 training or scientific result is authorized by this run.
 
 ### E-003 — Initial binary LSTM on v3 windows
-- **Status:** done
+- **Status:** done; **PILOT-DERIVED (D-036): computed on the seed-42 pilot; not a result, not for the paper**
 - **Date:** 2026-10-23
 - **Phase:** 3 (pipeline validation)
 - **Hypothesis / purpose:** Establish a reproducible learned binary detector baseline after human authorization to proceed past Gate 2, retaining the known E-002 shortcut caveat.
@@ -72,3 +72,17 @@ files, never estimated.
 - **Key results:** Across seeds 0-4, test ROC-AUC 0.5742 ± 0.0276 and PR-AUC 0.00443 ± 0.00048 (mean ± 95% t-interval half-width across seeds). Macro-F1 at threshold 0.5 is 0.4380 ± 0.0542; normal FPR at threshold 0.5 is 0.2245 ± 0.1654. Each test split has 37,683 non-ambiguous windows (37,566 normal, 117 attack). Values aggregated from the five per-seed `metrics.json` files.
 - **Result files:** `results/E-003/binary_lstm/seed<k>/metrics.json`, `history.csv`, `test_predictions.csv`; a same-seed checkpoint-preserving repeat is at `seed0_checkpointed/` and includes `model_state.pt`.
 - **Conclusion / caveats:** Low discrimination; no support for the requested 0.9 ROC-AUC. Pipeline validation only on one two-hour source and synthetic labels, with a known summary-statistic shortcut signal. No test-set tuning. Five per-seed configs, metrics, histories, and predictions are under ignored `results/E-003/binary_lstm/`. `seed0_checkpointed/` was trained with commit `8afab0b`; its result metrics exactly match the original seed-0 run, and its 28,293-byte CPU state dict was successfully loaded for verification.
+
+### E-004 — Stage C seed-42 attack generation PILOT (`stage1_seed_42_retry4`)
+- **Status:** done; **PILOT (D-036) — must not be used for evaluation or the paper**
+- **Date:** 2026-10-22 (generated); registered retroactively 2026-10-26
+- **Phase:** 1
+- **Hypothesis / purpose:** End-to-end Stage C generation smoke run of the multi-overlay writer.
+- **Data version:** input cleaned table content fingerprint `d05f15d7...f018e3`; output `data/attack_generation_v3/stage1_seed_42_retry4/` (ignored)
+- **Method / model:** 7 overlays, all tier `moderate`, `tau` 0.005, `duration_seconds` 120, `onset_mode` `linear_mix`, `episodes_per_segment` 1, `min_gap_seconds` 600; altitude overlay `altitude_variant` `baro_only`; manifest `dataset_mode` `uniform_per_subairspace`. Gate 1b calibration not run; no 600/900 s episodes.
+- **Config path:** `data/attack_generation_v3/stage1_seed_42_retry4/config.json` (config SHA-256 `e5faeeba...a531b`)
+- **Seeds:** 42
+- **Git commit:** `72958b07de012a15520788aaa445aabf6591878a`; `git_dirty` false
+- **Key results (from `manifest.json`):** table rows: attacked_rows 2,970,285; step_labels 2,970,285; windows 246,200; segments 21,389; overlay_selections 149,723; episodes 263; modified_row_provenance 3,142; rejected_candidates 63. Merged: 263 accepted episodes, 3,156 attack rows, 2,630 effective rows. Accepted by family: altitude_constant_deviation 59; random_gaussian_deviation 49; freeze_fixed_value 44; replay_partial_field 43; constant_deviation 39; replay_full_field 29; gradual_deviation 0. Rejections: insufficient_effective_rows 48 (all gradual); no_measurable_change 7 (freeze 6, replay_partial 1); overlay_conflict 4 (replay_full 2, constant 1, freeze 1); no_freeze_anchor 3; altitude_out_of_range 1. Realized tau (chosen/eligible): altitude 0.00606, constant 0.00407, freeze 0.00553, gradual 0.00501, gaussian 0.00511, replay_full 0.00386, replay_partial 0.00575.
+- **Result files:** `manifest.json`, eight Parquet tables, `plausibility_report.json`, `plots/` in the run directory.
+- **Conclusion / caveats:** Structural validators passed only; no semantic validation against the source. `episodes.speed_band` is `unknown` and `freeze_anchor_source_row_id` null for all episodes; `onground` NaN coerced to True. Pilot scale; one tier/duration/variant; zero gradual episodes. Directories `stage1_seed_42`, `_retry1`, `_retry2`, `_retry3` are incomplete partial attempts. All are immutable.

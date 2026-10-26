@@ -27,6 +27,9 @@ The `docs/` folder is your memory. If it is not written there, it did not happen
 3. `docs/ROADMAP.md` — phases, tasks, checkboxes, current phase
 4. Last ~5 entries of `docs/PROGRESS_LOG.md`
 5. `docs/DECISIONS.md` and `docs/EXPERIMENT_REGISTRY.md` (skim; search when relevant)
+6. `nextSteps.md` (repo root) — the staged recovery plan; do only the first
+   unchecked stage. (`docs/CHAT_HANDOFF.md` is superseded; see `docs/MASTER_CONTEXT.md`
+   if present.)
 
 **During work:**
 - Record every non-trivial design choice in `docs/DECISIONS.md` (append-only, numbered `D-###`).

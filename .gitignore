@@ -6,3 +6,4 @@ logs/
 docs/references/
 __pycache__/
 *.pyc
+.claude/
