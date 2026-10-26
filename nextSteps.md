@@ -59,7 +59,7 @@ The project built Phase 2 and Phase 3 on the **seed-42 pilot** (7 families, mode
 **STOP** for human approval of the dataset plan.
 
 ### Stage 3 — HDD source audit (read-only)
-- [ ] **S3**
+- [x] **S3** (commit 600ba2f)
 `scripts/audit_hdd_source.py [--max-archives N] [--out results/hdd_audit_v1]`: streams each `*.csv.tar` without permanent extraction, resumable per archive, memory-bounded; **never modifies `data/hdd_data`**. Write per-archive JSON + a summary JSON:
 1. Schema: README (first 2 KB), columns/dtypes, differences from the existing source (needs: time, icao24, lat, lon, velocity, heading, vertrate, onground, baroaltitude, geoaltitude, lastcontact).
 2. Time: min/max per archive, covered dates/hours, gaps, rows per hour.
