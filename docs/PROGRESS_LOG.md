@@ -523,3 +523,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-040 (approval of D-039).
 **Next steps:** (1) Human runs `audit_hdd_source.py` and pastes `results/hdd_audit_v1/summary.json`. (2) S4 human gate: decide source, resampling rule, split strategy; confirm D-039. (3) Then S5 source prep.
 **Questions for human:** Run the audit and share `summary.json`; then make the S4 decisions. S3 stops here.
+
+### 2026-10-26 — Session 5 (cont.) — Claude Code — Phase 1 (S3 run + S4 gate)
+**Goal:** Fix the audit to read the real archives, run it, and record the S4 source/resampling/split decisions.
+**Done:** Fixed two audit bugs: recursive archive discovery (`find_archives`/`rglob`; archives live in dot-prefixed nested date/hour dirs) and gzipped-inner-CSV reading (`states_*.csv.gz` decompressed on the fly; contract columns only; real header kept for the schema diff). Recorded D-041 (S4 gate). Ticked S4; updated PROJECT_CONTEXT.
+**Ran / verified:** `pytest -q` HDD tests green. One-archive smoke (37 s) then the human-run full 90-archive audit → `results/hdd_audit_v1/` (ignored). Aggregated all 90 per-archive JSONs: 207,010,888 rows; 79,755 aircraft; 4 dates; 90 hours; every archive schema-matches the contract; median dt 10.0 s in all 90, 99.9% steps ==10 s, 0% ==1 s, decimate-to-10 s ratio 1.0; 0 duplicate (icao24,time) rows; onground-true 6–11%; velocity up to 2,974 m/s (glitches); global box (lat −70→75, lon ±180, ~340–377 cells/hour); aircraft recurrence across dates 61.3% (48,878/79,755, max 4).
+**NOT verified:** Per-cell feasibility and descriptive-only cells (await capacity study S2 / Gate 1b S6 on HDD). No HDD cleaning, split, generation, or training done. Velocity-glitch handling in the clean is a stated S5 task, not yet implemented.
+**Results:** Audit only; no experiment. `results/hdd_audit_v1/summary.json` is the record.
+**Problems / surprises:** The README's "~1 Hz" is wrong — the data is ~10 s, so the resampling concern in D-035 is moot. 61% cross-date aircraft recurrence forces a global aircraft-level split.
+**Decisions made:** D-041 (HDD primary source; no resampling; global hashed-icao24 split; existing assembler).
+**Next steps:** (1) S5 — `scripts/build_hdd_dataset.py` → a new versioned `data/processed/<name>/` matching the `opensky_clean_v1` schema, with a global aircraft split file and `scripts/validate_clean_source.py`; handle velocity glitches. (2) Human runs the builder/validator. (3) S6 Gate 1b calibration on the HDD source.
+**Questions for human:** None; S4 decided. S5 is next (plan then go).

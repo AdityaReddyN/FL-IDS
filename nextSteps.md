@@ -71,7 +71,7 @@ Write `docs/hdd_audit_report_template.md` listing the human decisions the result
 **STOP.** Human runs the script and pastes `results/hdd_audit_v1/summary.json`.
 
 ### Stage 4 — HUMAN GATE (agent: do nothing, wait)
-- [ ] **S4** Human decides, with Claude (chat) review: source (two-hour OpenSky, HDD, or both), resampling rule, split strategy, and approves the dataset plan from S2. Agent records these as decisions (next free D-numbers) when told.
+- [x] **S4** (D-041) Human decided: HDD primary source, no resampling (data is already ~10 s), global hashed-`icao24` split; D-039 plan approved at D-040. Audit: `results/hdd_audit_v1/summary.json` (90 archives, 207M rows, 79,755 aircraft, 4 dates).
 
 ### Stage 5 — Source preparation (only after S4 approval)
 - [ ] **S5**
