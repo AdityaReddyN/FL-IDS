@@ -80,7 +80,19 @@ numeric details not verifiable from the paper are implementation choices.
   7.3%. 17,019 rows have velocity >400 m/s (preserved, flagged). The validator
   (`results/hdd_clean_v1_validation/report.json`) passed all five checks:
   schema, natural-key uniqueness, sorted order, 10 s cadence, split
-  coverage/disjointness. Next: S6 Gate 1b calibration on this HDD clean.
+  coverage/disjointness.
+- S6 is implemented and awaiting a human run: pure oracle helpers in
+  `src/flids/attacks/calibration.py` (horizontal/altitude residual, manipulation/
+  freeze/partial-replay recall, integrated residual, a seeded vectorized
+  Reservoir, tier proposal) using the REAL ramp (first step 0.25x magnitude);
+  and `scripts/gate1b_calibration.py`, a memory-bounded, train-only streaming
+  driver over the HDD parts that writes `results/gate1b_calibration_v2.json`
+  (never `docs/calibration_v3_stage1.json`). It reports train p95 thresholds
+  per speed band, horizontal boundary recall vs magnitude (abrupt + real ramp)
+  with a fast-band tier proposal, freeze/partial-replay/altitude oracles,
+  matched-control FPR, and per-split per-band episode capacity. Not run on real
+  data. Next: human runs it; then tier/magnitude parameters are re-approved in a
+  new decision before generation (S7).
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;

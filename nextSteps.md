@@ -79,7 +79,7 @@ If HDD is chosen: `scripts/build_hdd_dataset.py` writes a **new versioned** `dat
 **STOP.**
 
 ### Stage 6 — Gate 1b calibration on the chosen source
-- [ ] **S6**
+- [x] **S6** (commit PENDING)
 `scripts/gate1b_calibration.py` (read-only; human runs; output `results/gate1b_calibration_v2.json`, never overwrite the old JSON); thresholds from **train aircraft only**:
 1. Oracle boundary recall vs horizontal magnitude (500–16,000 m), **abrupt and the real ramp (first step 0.25 × magnitude)**, per speed band; propose tiers at ≈10/30/60/90% for fast bands; gross control abrupt.
 2. Integrated-residual oracle (k = 5, 10, 29): position change over k steps minus Σ v·dt, train-only p95 per band and k; recall for gradual (600/900 s), freeze, constant offset (interior and boundary).
