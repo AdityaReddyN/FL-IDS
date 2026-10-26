@@ -512,3 +512,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-039 (PROPOSED).
 **Next steps:** (1) Human reviews/approves D-039 (part of the S4 gate). (2) S3 HDD source audit (read-only). (3) Keep one stage per session.
 **Questions for human:** Approve the D-039 dataset plan (three kinds), or adjust it? S2 stops here for that.
+
+### 2026-10-26 — Session 5 (cont.) — Claude Code — Phase 1 (S3)
+**Goal:** Execute Stage S3 of `nextSteps.md` (write + test the read-only HDD source audit); do NOT run it on real data.
+**Done:** Added pure helpers `src/flids/data/hdd_audit.py` (`column_schema_diff` vs the cleaned-table contract, `dt_quantiles`, `cadence_shares`, `aircraft_recurrence`, `cell_coverage`, `resample_count_estimate` for candidate 10 s decimation — estimate only, never applied). Added read-only `scripts/audit_hdd_source.py`: streams each `data/hdd_data/*.csv.tar` via `tarfile.extractfile` (no permanent extraction), resumable per archive (skips existing per-archive JSON), refuses to write under `data/hdd_data`; `audit_archive()` returns the per-archive summary (schema + README head, time coverage/date-hours, pooled per-track cadence + >30 s-gap track share, quality: missingness/onground share/duplicate (icao24,time)/sort order/velocity+heading ranges/lastcontact lag, 5° cell coverage, 10 s resample estimate); `main()` writes per-archive JSON + `summary.json` (covered dates/hours, rows per archive, aircraft recurrence across hours and dates, schema mismatches). Added `docs/hdd_audit_report_template.md` listing the S4 human decisions. Recorded D-040 (human approval of the D-039 structure).
+**Ran / verified:** `.venv/Scripts/python.exe -m pytest -q` → **312 passed** (was 305; +7). Tests cover each pure helper on synthetic arrays and an end-to-end streaming summary from a tiny in-memory `.csv.tar` fixture.
+**NOT verified:** `audit_hdd_source.py` was NOT run on real data — `data/hdd_data` is empty in this checkout. No cadence, coverage, duplicate, or recurrence figures were measured. No processing, resampling, or attacks.
+**Results:** No experiment; no metrics.
+**Problems / surprises:** `data/hdd_data` holds no archives in this working copy, so the audit is validated on fixtures only; the human runs it where the archives live.
+**Decisions made:** D-040 (approval of D-039).
+**Next steps:** (1) Human runs `audit_hdd_source.py` and pastes `results/hdd_audit_v1/summary.json`. (2) S4 human gate: decide source, resampling rule, split strategy; confirm D-039. (3) Then S5 source prep.
+**Questions for human:** Run the audit and share `summary.json`; then make the S4 decisions. S3 stops here.

@@ -44,8 +44,17 @@ numeric details not verifiable from the paper are implementation choices.
   was refactored to a shared `segment_selection` helper (goldens unchanged).
   Read-only `scripts/capacity_study.py` added (not run). **D-039 PROPOSES** a
   three-kind dataset plan (A per-cell evaluation, B mixed realistic-prevalence,
-  C Track B training) — PROPOSED, not approved; S2 stops here for human review.
-  Next approved steps: S3 (HDD source audit) then S4 (human gate).
+  C Track B training). D-040 records human approval of the D-039 structure
+  (numeric params still open, set at S4/S6).
+- S3 is implemented and awaiting a human run: read-only `scripts/audit_hdd_source.py`
+  streams each `data/hdd_data/*.csv.tar` (resumable, never writes under
+  `data/hdd_data`) and writes per-archive + `summary.json` reports across six
+  areas (schema, time coverage, per-track cadence, aircraft recurrence, quality,
+  10 s resampling estimate); pure helpers in `src/flids/data/hdd_audit.py`;
+  `docs/hdd_audit_report_template.md` lists the S4 human decisions. Nothing was
+  run on real data (the archives are not in this checkout). Next: human runs the
+  audit and pastes `summary.json`; S4 is the human gate (source, resampling,
+  split, confirm D-039).
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;
