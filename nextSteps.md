@@ -30,7 +30,7 @@ The project built Phase 2 and Phase 3 on the **seed-42 pilot** (7 families, mode
 ## 2. Stages (tick when done: `- [x] S1 (commit abc1234)`)
 
 ### Stage 0 — Docs, supersession, hygiene
-- [x] **S0** (commit f3dd4a2)
+- [x] **S0** (commit cced56f)
 1. Add `.claude/` to `.gitignore`.
 2. New decision (next free D-number): `stage1_seed_42_retry4` is a **pilot** (family list, tier moderate, τ=0.005, 120 s, baro_only, 1 seed, 263 accepted episodes); supersede D-032's Gate 1 acceptance (history kept); Phase 2/3 outputs built on it are **pilot-derived**.
 3. Register the pilot run as an experiment from its `manifest.json` only (counts, accepted by family, rejections, commit hash, `git_dirty`). Mark E-002 and E-003 "PILOT-DERIVED — not results".
