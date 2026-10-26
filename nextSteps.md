@@ -52,7 +52,7 @@ The project built Phase 2 and Phase 3 on the **seed-42 pilot** (7 families, mode
 **STOP.**
 
 ### Stage 2 — Quota mode and dataset plan (still source-independent)
-- [ ] **S2**
+- [x] **S2** (commit 09ddd23)
 1. Ranked quota selection, two passes, deterministic, chunk-independent: pass 1 computes eligibility and the overlay-keyed `selection_u` for every segment (no episode building); then per overlay and split take the lowest-`u` eligible segments until BOTH the episode target and the unique-aircraft target are met; pass 2 builds episodes only for selected segments. Honor `fail_on_capacity_shortfall` (raise with the per-cell shortfall table). Keep Bernoulli mode as the realistic-prevalence mode. Manifest records requested/feasible/realized per cell.
 2. `scripts/capacity_study.py` (read-only, do NOT run): per candidate overlay (family × tier/duration × onset_mode) and split: eligible segments, eligible starts, unique aircraft, and how many overlays fit in a merged dataset at one overlay per segment.
 3. Propose (as a PROPOSED decision) a **dataset plan** with three kinds: (A) per-cell evaluation overlays, one overlay per run, quota-filled, for per-family/tier/duration recall incl. boundary vs interior-only (long episodes 600/900 s for gradual/constant/freeze); (B) a mixed realistic-prevalence set (all families, small τ); (C) a mixed Track B training set. Do not generate anything.
