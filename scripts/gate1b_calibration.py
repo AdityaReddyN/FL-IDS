@@ -54,28 +54,7 @@ def _quantiles(values, levels=(0.5, 0.9, 0.95, 0.99)) -> dict:
     return {"n": int(v.size), **{f"q{int(l*100)}": float(np.quantile(v, l)) for l in levels}}
 
 
-def _replay_shift(times, lat, lon, eligible):
-    """Per-segment 300 s-earlier same-track link; returns shift north/east or NaN."""
-    n = times.size
-    sn = np.full(n, np.nan); se = np.full(n, np.nan)
-    src_pos = np.flatnonzero(eligible)
-    if src_pos.size == 0:
-        return sn, se
-    src_t = times[src_pos].astype(float)
-    desired = times.astype(float) - REPLAY_DELAY_S
-    right = np.searchsorted(src_t, desired, side="left")
-    left = np.clip(right - 1, 0, src_pos.size - 1)
-    right = np.clip(right, 0, src_pos.size - 1)
-    picked = np.where(np.abs(src_t[right] - desired) < np.abs(src_t[left] - desired), right, left)
-    dist = np.abs(src_t[picked] - desired)
-    ok = (dist <= REPLAY_TOLERANCE_S) & (src_t[picked] < times)
-    s = src_pos[picked]
-    sn[ok] = (lat[s[ok]] - lat[ok]) * 111_320.0
-    se[ok] = (lon[s[ok]] - lon[ok]) * 111_320.0 * np.cos(np.deg2rad(lat[ok]))
-    return sn, se
-
-
-def process_part(df, train_ids, horiz, replay_res, alt, capacity):
+def process_part(df, horiz, replay_res, alt, capacity):
     df = df.sort_values(["icao24", "segment_id", "time"], kind="mergesort").reset_index(drop=True)
     icao = df["icao24"].astype(str).to_numpy()
     seg = df["segment_id"].to_numpy()
@@ -90,12 +69,16 @@ def process_part(df, train_ids, horiz, replay_res, alt, capacity):
     lag = df["contact_lag_seconds"].to_numpy(float)
     observed = df[list(FEATURES)].notna().all(axis=1).to_numpy()
     eligible = airborne & np.isfinite(lag) & (lag >= 0.0) & (lag <= MAX_CONTACT_LAG_SECONDS) & observed
-    is_train = np.isin(icao, np.asarray(list(train_ids)))
+    split_label = pd.Series(icao).map(capacity["_split_of"]).to_numpy()
+    is_train = split_label == "train"
 
-    # Within (icao24, segment_id): previous-row arrays.
-    same_seg = np.zeros(len(df), dtype=bool)
-    same_seg[1:] = (icao[1:] == icao[:-1]) & (seg[1:] == seg[:-1])
-    prev = np.arange(len(df)) - 1
+    # Group id per (icao24, segment_id); the frame is sorted so it is monotonic.
+    n = len(df)
+    new_group = np.ones(n, dtype=bool)
+    new_group[1:] = (icao[1:] != icao[:-1]) | (seg[1:] != seg[:-1])
+    gid = (np.cumsum(new_group) - 1).astype(np.int64)
+    same_seg = ~new_group
+    prev = np.arange(n) - 1
     dt = np.where(same_seg, time - time[prev], np.nan)
     pair = same_seg & eligible & eligible[prev] & (dt > 0) & (dt <= 30.0)
 
@@ -115,45 +98,46 @@ def process_part(df, train_ids, horiz, replay_res, alt, capacity):
              "geo": altitude_residual_m(geo[prev][av], geo[av], vrate[av], dt[av]),
              "vband": vband[av], "train": is_train[av]})
 
-    # One pass over segments: collect partial-replay rows (added to the
-    # reservoir ONCE per part, not per segment, to avoid O(n^2) concatenation)
-    # and accumulate episode-start capacity.
-    rep: dict[str, list] = {k: [] for k in ("north", "east", "en", "ee", "sn", "se", "band", "train")}
-    segment_indices = df.groupby(["icao24", "segment_id"], sort=False).indices
-    for (ic, _sg), pos in segment_indices.items():
-        pos = np.asarray(pos, dtype=np.int64)
-        if pos.size < 2:
-            continue
-        ic = str(ic)
-        sn, se = _replay_shift(time[pos], lat[pos], lon[pos], eligible[pos])
-        rp = pair[pos] & np.isfinite(sn)
+    # --- Vectorized partial replay: within-group ~300 s-earlier eligible link.
+    # A sort key of gid*OFFSET + time keeps nearest-neighbour search inside one
+    # group (OFFSET exceeds any epoch time, so groups never overlap in key space).
+    OFFSET = 4_000_000_000
+    key = gid * OFFSET + time.astype(np.int64)
+    src = np.flatnonzero(eligible)
+    if src.size:
+        src_key = key[src]
+        desired_key = key - int(REPLAY_DELAY_S)
+        right = np.clip(np.searchsorted(src_key, desired_key, side="left"), 0, src.size - 1)
+        left = np.clip(right - 1, 0, src.size - 1)
+        pick = np.where(np.abs(src_key[right] - desired_key) < np.abs(src_key[left] - desired_key), right, left)
+        picked = src[pick]
+        desired_time = time - REPLAY_DELAY_S
+        ok = (gid[picked] == gid) & (np.abs(time[picked] - desired_time) <= REPLAY_TOLERANCE_S) & (time[picked] < time)
+        rp = pair & ok
         if rp.any():
-            local = pos[rp]
-            rep["north"].append(north[local]); rep["east"].append(east[local])
-            rep["en"].append(en[local]); rep["ee"].append(ee[local])
-            rep["sn"].append(sn[rp]); rep["se"].append(se[rp])
-            rep["band"].append(sband[local]); rep["train"].append(is_train[local])
-        split = "train" if ic in train_ids else capacity["_split_of"].get(ic)
-        if split is None:
+            sn = (lat[picked] - lat) * 111_320.0
+            se = (lon[picked] - lon) * 111_320.0 * np.cos(np.deg2rad(lat))
+            replay_res.add({"north": north[rp], "east": east[rp], "en": en[rp], "ee": ee[rp],
+                            "sn": sn[rp], "se": se[rp], "band": sband[rp], "train": is_train[rp]})
+
+    # --- Vectorized episode-start capacity per split x speed band.
+    elig_prefix = np.concatenate([[0], np.cumsum(eligible, dtype=np.int64)])
+    gstart_prefix = np.concatenate([[0], np.cumsum(new_group.astype(np.int64))])
+    for label, ep in EPISODE_ROWS.items():
+        if n < ep:
             continue
-        prefix = np.r_[0, np.cumsum(eligible[pos], dtype=np.int64)]
-        bands_at = sband[pos]
-        for label, ep in EPISODE_ROWS.items():
-            if pos.size < ep:
-                continue
-            starts = np.flatnonzero(prefix[ep:] - prefix[:-ep] == ep)
-            if starts.size == 0:
-                continue
-            bands = bands_at[starts]
-            for bname, _, _ in SPEED_BANDS:
-                k = int(np.count_nonzero(bands == bname))
-                if k == 0:
-                    continue
-                cell = capacity[label].setdefault(split, {}).setdefault(bname, {"episode_starts": 0, "aircraft": set()})
-                cell["episode_starts"] += k
-                cell["aircraft"].add(ic)
-    if rep["north"]:
-        replay_res.add({k: np.concatenate(v) for k, v in rep.items()})
+        i = np.arange(n - ep + 1)
+        all_eligible = (elig_prefix[i + ep] - elig_prefix[i]) == ep
+        single_segment = (gstart_prefix[i + ep] - gstart_prefix[i + 1]) == 0
+        starts = i[all_eligible & single_segment]
+        if starts.size == 0:
+            continue
+        frame = pd.DataFrame({"split": split_label[starts], "band": sband[starts], "icao": icao[starts]})
+        frame = frame[frame["split"].isin(SPLIT_NAMES)]
+        for (split, band), group in frame.groupby(["split", "band"], sort=False):
+            cell = capacity[label].setdefault(split, {}).setdefault(band, {"episode_starts": 0, "aircraft": set()})
+            cell["episode_starts"] += int(len(group))
+            cell["aircraft"].update(group["icao"].unique().tolist())
 
 
 def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
@@ -284,7 +268,6 @@ def parse_args() -> argparse.Namespace:
 
 def run(clean_dir: Path, reservoir: int, seed: int, max_parts: int | None = None) -> dict:
     split = json.loads((clean_dir / "split_aircraft.json").read_text(encoding="utf-8"))
-    train_ids = set(map(str, split["train"]))
     split_of = {str(ic): name for name, ids in split.items() for ic in ids}
     horiz = Reservoir(reservoir, seed)
     replay_res = Reservoir(reservoir, seed + 1)
@@ -299,7 +282,7 @@ def run(clean_dir: Path, reservoir: int, seed: int, max_parts: int | None = None
     for part in parts:
         df = pd.read_parquet(part, columns=["icao24", "segment_id", "time", "onground",
                                             "contact_lag_seconds", *FEATURES])
-        process_part(df, train_ids, horiz, replay_res, alt, capacity)
+        process_part(df, horiz, replay_res, alt, capacity)
         print(f"processed {part.name}", flush=True)
     capacity.pop("_split_of", None)
     return summarize(horiz, replay_res, alt, capacity, seed)
