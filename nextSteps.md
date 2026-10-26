@@ -74,7 +74,7 @@ Write `docs/hdd_audit_report_template.md` listing the human decisions the result
 - [x] **S4** (D-041) Human decided: HDD primary source, no resampling (data is already ~10 s), global hashed-`icao24` split; D-039 plan approved at D-040. Audit: `results/hdd_audit_v1/summary.json` (90 archives, 207M rows, 79,755 aircraft, 4 dates).
 
 ### Stage 5 — Source preparation (only after S4 approval)
-- [ ] **S5**
+- [x] **S5** (commit PENDING)
 If HDD is chosen: `scripts/build_hdd_dataset.py` writes a **new versioned** `data/processed/<name>/` in exactly the schema and conventions of `opensky_clean_v1` (same columns incl. `*_missing`, `heading_sin/cos`, `contact_lag_*`, `segment_id` split at >30 s gaps, `time` int64 epoch seconds), after the approved deterministic resampling to 10 s; processed per hour in chunks; reuse functions from `scripts/build_dataset.py` rather than rewriting. A **global aircraft-level split** (hash of `icao24` with a fixed seed so an aircraft is in one split across all hours and dates) saved as a new split file; never reuse `split_aircraft.json` for new aircraft. Provide `scripts/validate_clean_source.py` (natural-key uniqueness, sorted order, dt distribution = 10 s, schema equals `opensky_clean_v1`, fingerprints, split coverage and disjointness, rows/aircraft/segments/missingness table vs the old source) and a content fingerprint. Human runs the builder and validator.
 **STOP.**
 

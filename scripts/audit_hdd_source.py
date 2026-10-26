@@ -15,11 +15,8 @@ results feed into.
 from __future__ import annotations
 
 import argparse
-import gzip
-import io
 import json
 import sys
-import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,61 +37,9 @@ from flids.data.hdd_audit import (  # noqa: E402
     dt_quantiles,
     resample_count_estimate,
 )
+from flids.data.hdd_io import find_archives, read_archive  # noqa: E402
 
 HDD_DIR = Path("data/hdd_data")
-_README_MAX_BYTES = 2048
-
-
-def find_archives(input_dir: Path) -> list[Path]:
-    """Return every ``*.csv.tar`` under ``input_dir``, recursively and sorted.
-
-    The archives live in nested, dot-prefixed per-date/hour directories (e.g.
-    ``data/hdd_data/.2019-11-18/00/states_2019-11-18-00.csv.tar``), so discovery
-    must recurse rather than glob only the top level.
-    """
-    return sorted(Path(input_dir).rglob("*.csv.tar"))
-
-
-def _csv_stream(tar: tarfile.TarFile, member: tarfile.TarInfo):
-    """Return a text-readable stream for a ``.csv`` or ``.csv.gz`` tar member."""
-    handle = tar.extractfile(member)
-    if handle is None:
-        raise ValueError(f"cannot read member {member.name!r}")
-    if member.name.lower().endswith(".gz"):
-        return gzip.GzipFile(fileobj=handle)
-    return handle
-
-
-def _read_inner_csv(tar: tarfile.TarFile):
-    """Return (member_name, DataFrame, observed_columns, readme_head).
-
-    Handles the real OpenSky layout: the tar holds ``states_*.csv.gz`` plus
-    ``README.txt``/``LICENSE.txt``. The CSV is decompressed on the fly (never
-    extracted to disk) and only the cleaned-table contract columns are loaded,
-    to bound memory on the ~1 GiB-decompressed hourly files. The full observed
-    header is kept for the schema diff.
-    """
-    csv_member = None
-    readme_head = None
-    for member in tar.getmembers():
-        lower = member.name.lower()
-        if (lower.endswith(".csv") or lower.endswith(".csv.gz")) and csv_member is None:
-            csv_member = member
-        elif "readme" in lower and readme_head is None:
-            handle = tar.extractfile(member)
-            if handle is not None:
-                readme_head = handle.read(_README_MAX_BYTES).decode("utf-8", "replace")
-    if csv_member is None:
-        raise ValueError("no .csv or .csv.gz member found in archive")
-    # Pass 1: header only, for the observed schema (cheap).
-    with _csv_stream(tar, csv_member) as header_stream:
-        observed = [str(c).strip() for c in pd.read_csv(header_stream, nrows=0).columns]
-    # Pass 2: load only the contract columns to bound memory.
-    wanted = set(EXPECTED_COLUMNS)
-    with _csv_stream(tar, csv_member) as data_stream:
-        frame = pd.read_csv(data_stream, usecols=lambda c: str(c).strip() in wanted)
-    frame.columns = frame.columns.str.strip()
-    return csv_member.name, frame, observed, readme_head
 
 
 def _pooled_track_dt(df: pd.DataFrame) -> tuple[np.ndarray, float]:
@@ -118,8 +63,7 @@ def _pooled_track_dt(df: pd.DataFrame) -> tuple[np.ndarray, float]:
 
 def audit_archive(path: Path) -> dict:
     """Stream and summarize one ``.csv.tar`` archive (read-only, in memory)."""
-    with tarfile.open(path, "r") as tar:
-        member_name, df, observed_columns, readme_head = _read_inner_csv(tar)
+    member_name, df, observed_columns, readme_head = read_archive(path)
 
     schema = column_schema_diff(observed_columns)
     has_time = "time" in df.columns

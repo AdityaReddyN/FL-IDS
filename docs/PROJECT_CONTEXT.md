@@ -60,8 +60,18 @@ numeric details not verifiable from the paper are implementation choices.
   archive schema-matching, cadence ~10 s (not 1 Hz), 0 duplicate (icao24,time)
   rows, and 61% aircraft recurrence across dates. Chosen: HDD primary source,
   no resampling (existing ~10 s assembler applies), global hashed-`icao24`
-  split. Velocity glitches (up to ~2974 m/s) flagged for the S5 clean. Next is
-  S5 (build a new versioned cleaned HDD table + global split + validator).
+  split. Velocity glitches (up to ~2974 m/s) flagged for the S5 clean.
+- S5 is implemented and awaiting a human run: shared cleaning conventions in
+  `src/flids/data/clean.py` (opensky_clean_v1 schema), shared archive reading in
+  `src/flids/data/hdd_io.py` (the audit now uses it too), a memory-bounded
+  two-pass `scripts/build_hdd_dataset.py` (hash-of-icao24 buckets so segment_id
+  gets correct per-aircraft order at 207M rows; no resampling; velocity glitches
+  preserved and only counted; refuses a dirty tree; writes a NEW
+  `data/processed/hdd_clean_v1/` + global hashed split + manifest), and
+  `scripts/validate_clean_source.py` (schema/key-uniqueness/sorted/10 s-cadence/
+  split-coverage + vs-old-source table). `build_dataset.py` left untouched to
+  preserve the E-001 reproduction. Not run on real data. Next: human runs the
+  builder + validator, then S6 (Gate 1b calibration on the HDD source).
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;
