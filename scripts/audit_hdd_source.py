@@ -43,6 +43,16 @@ HDD_DIR = Path("data/hdd_data")
 _README_MAX_BYTES = 2048
 
 
+def find_archives(input_dir: Path) -> list[Path]:
+    """Return every ``*.csv.tar`` under ``input_dir``, recursively and sorted.
+
+    The archives live in nested, dot-prefixed per-date/hour directories (e.g.
+    ``data/hdd_data/.2019-11-18/00/states_2019-11-18-00.csv.tar``), so discovery
+    must recurse rather than glob only the top level.
+    """
+    return sorted(Path(input_dir).rglob("*.csv.tar"))
+
+
 def _read_inner_csv(tar: tarfile.TarFile):
     """Return (csv_member_name, DataFrame, readme_head) streamed from the tar."""
     csv_member = None
@@ -169,7 +179,7 @@ def main() -> int:
     out_dir = args.out if args.out.is_absolute() else ROOT / args.out
     if out_dir.resolve() == (ROOT / HDD_DIR).resolve() or (ROOT / HDD_DIR).resolve() in out_dir.resolve().parents:
         raise SystemExit("refusing to write the audit under data/hdd_data")
-    archives = sorted(input_dir.glob("*.csv.tar"))
+    archives = find_archives(input_dir)
     if args.max_archives is not None:
         archives = archives[: args.max_archives]
     if not archives:

@@ -96,6 +96,13 @@ def test_audit_script_summary_end_to_end(tmp_path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
+    # Archives live in nested, dot-prefixed per-date/hour dirs; discovery must recurse.
+    nested = tmp_path / ".2019-11-18" / "00"
+    nested.mkdir(parents=True)
+    _make_csv_tar(nested, name="states_2019-11-18-00.csv.tar")
+    found = module.find_archives(tmp_path)
+    assert len(found) == 1 and found[0].name == "states_2019-11-18-00.csv.tar"
+
     archive = _make_csv_tar(tmp_path)
     summary = module.audit_archive(archive)
     assert summary["schema"]["matches_contract"] is True
