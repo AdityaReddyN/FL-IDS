@@ -8,6 +8,7 @@ import pytest
 
 from flids.attacks import writer
 from flids.attacks.assembler import OverlaySpec
+from flids.attacks.quota import QuotaTarget
 from flids.attacks.schemas import validate_table
 
 
@@ -112,6 +113,31 @@ def test_writer_records_multi_overlay_merge_order_and_selection(tmp_path, monkey
     assert set(constant_overlay["tau_by_split"]).issubset({"train", "val", "test"})
     for split_stats in constant_overlay["tau_by_split"].values():
         assert split_stats["tau_requested"] == 1.0
+
+
+def test_writer_quota_mode_selects_by_target_and_records_report(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("status: approved\n", encoding="utf-8")
+    monkeypatch.setattr(writer, "git_dirty", lambda _root: False)
+    ov = OverlaySpec("constant_deviation", "moderate", subtype="constant",
+                     duration_seconds=100, magnitude_m=5000.0, tau=0.0)
+    targets = {ov.overlay_key: QuotaTarget(
+        episodes={"train": 1, "val": 0, "test": 0},
+        unique_aircraft={"train": 1, "val": 0, "test": 0},
+    )}
+    manifest = writer.write_overlay_tables(
+        source_frame(), ov, 17, split_of,
+        {"status": "approved", "quota_mode": {"fail_on_capacity_shortfall": True}},
+        config_path=config_path, output_dir=tmp_path / "quota-run",
+        quota_targets=targets, max_segments_per_chunk=1,
+    )
+    assert manifest["selection_mode"] == "ranked_quota"
+    cells = {c["split"]: c for c in manifest["quota"]["per_cell"]}
+    assert cells["train"]["realized_segments"] == 1
+    assert cells["val"]["realized_segments"] == 0
+    episodes = pd.read_parquet(tmp_path / "quota-run" / "episodes.parquet")
+    assert (episodes["selection_method"] == "ranked_quota_lowest_u_eligible_segment").all()
+    assert len(episodes) == 1
 
 
 def test_writer_reports_chunk_progress_without_changing_output(tmp_path, monkeypatch):

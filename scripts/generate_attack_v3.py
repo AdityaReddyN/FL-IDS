@@ -16,7 +16,10 @@ if str(SRC) not in sys.path:
 from dataclasses import asdict
 
 from flids.attacks.config import load_approved_config, load_run_plan
-from flids.attacks.run_config import dry_run_summary, overlay_from_config, overlays_from_plan
+from flids.attacks.quota import select_quota_segments
+from flids.attacks.run_config import (
+    dry_run_summary, overlay_from_config, overlays_from_plan, quota_targets_from_plan,
+)
 from flids.attacks.splits import load_split_aircraft
 from flids.attacks.writer import write_overlay_tables
 
@@ -61,7 +64,8 @@ def _resolve_overlays(args, config) -> tuple:
     if args.plan is not None:
         if any(value is not None for value in explicit):
             raise SystemExit("--plan cannot be combined with --family/--tier/--tau/--duration-seconds")
-        return overlays_from_plan(config, load_run_plan(args.plan))
+        plan = load_run_plan(args.plan)
+        return overlays_from_plan(config, plan), quota_targets_from_plan(config, plan)
     missing = [
         name for name, value in (
             ("--family", args.family), ("--tier", args.tier),
@@ -73,7 +77,7 @@ def _resolve_overlays(args, config) -> tuple:
             "provide --plan, or all of --family/--tier/--tau/--duration-seconds "
             f"(missing: {', '.join(missing)})"
         )
-    return tuple(overlay_from_config(
+    overlays = tuple(overlay_from_config(
         config,
         family,
         args.tier,
@@ -83,13 +87,14 @@ def _resolve_overlays(args, config) -> tuple:
         episodes_per_segment=args.episodes_per_segment,
         onset_mode=args.onset_mode,
     ) for family in args.family)
+    return overlays, None
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     config_path = args.config.resolve()
     config = load_approved_config(config_path)
-    overlays = _resolve_overlays(args, config)
+    overlays, quota_targets = _resolve_overlays(args, config)
     resolved_plan = [asdict(overlay) for overlay in overlays]
     print(json.dumps({"resolved_plan": resolved_plan}, indent=2, sort_keys=True))
     input_path = Path(config["input"]["cleaned_table"])
@@ -108,6 +113,19 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"--out must be a new run directory beneath {allowed_root}")
 
     if args.dry_run:
+        if quota_targets is not None:
+            result = select_quota_segments(
+                frame, overlays, args.seed, split_map.split_of, quota_targets,
+                fail_on_capacity_shortfall=False,
+            )
+            print(json.dumps({
+                "selection_mode": "ranked_quota",
+                "resolved_plan": resolved_plan,
+                "overlay_merge_order": [overlay.overlay_key for overlay in overlays],
+                "quota": {"per_cell": result["per_cell"], "shortfall": result["shortfall"]},
+                "seed": args.seed,
+            }, indent=2, sort_keys=True))
+            return 0
         summary = dry_run_summary(
             frame,
             overlays,
@@ -143,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
             config_path=config_path,
             output_dir=resolved_out,
             resolved_plan=resolved_plan,
+            quota_targets=quota_targets,
             max_segments_per_chunk=args.segments_per_chunk,
             repo_root=ROOT,
             progress_callback=progress_callback,

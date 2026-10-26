@@ -53,7 +53,7 @@ def test_plan_and_explicit_flags_are_mutually_exclusive(tmp_path):
 
 def test_explicit_flags_build_overlays():
     cli = _load_cli()
-    overlays = cli._resolve_overlays(
+    overlays, quota_targets = cli._resolve_overlays(
         _args(family=["constant_deviation"], tier="moderate", tau=0.005,
               duration_seconds=120.0, onset_mode="abrupt"),
         _config(),
@@ -61,3 +61,25 @@ def test_explicit_flags_build_overlays():
     assert len(overlays) == 1
     assert overlays[0].attack_family == "constant_deviation"
     assert overlays[0].onset_mode == "abrupt"
+    assert quota_targets is None
+
+
+def test_plan_quota_resolves_overlays_and_targets(tmp_path):
+    import yaml
+    cli = _load_cli()
+    cfg = _config()
+    cfg["quota_mode"] = {
+        "target_episodes_per_cell": {"train": 300, "val": 150, "test": 150},
+        "target_unique_aircraft_per_cell": {"train": 200, "val": 100, "test": 100},
+    }
+    plan_path = tmp_path / "plan.yaml"
+    plan_path.write_text(yaml.safe_dump({
+        "plan_version": 1,
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120,
+             "quota_target": {"episodes": 5, "unique_aircraft": 3}},
+        ],
+    }), encoding="utf-8")
+    overlays, quota_targets = cli._resolve_overlays(_args(plan=plan_path), cfg)
+    assert len(overlays) == 1 and overlays[0].tau == 0.0
+    assert quota_targets[overlays[0].overlay_key].episodes["train"] == 5

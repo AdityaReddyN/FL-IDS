@@ -1,6 +1,8 @@
 import pytest
 
-from flids.attacks.run_config import dry_run_summary, overlay_from_config, overlays_from_plan
+from flids.attacks.run_config import (
+    dry_run_summary, overlay_from_config, overlays_from_plan, plan_mode, quota_targets_from_plan,
+)
 
 
 def config():
@@ -56,7 +58,12 @@ def test_overlays_from_plan_builds_tau_overlays_with_onset_mode():
     assert overlays[1].onset_mode == "abrupt" and overlays[1].duration_seconds == 900
 
 
-def test_overlays_from_plan_quota_target_not_implemented_in_s1():
+def test_quota_plan_builds_overlays_and_targets():
+    cfg = config()
+    cfg["quota_mode"] = {
+        "target_episodes_per_cell": {"train": 300, "val": 150, "test": 150},
+        "target_unique_aircraft_per_cell": {"train": 200, "val": 100, "test": 100},
+    }
     plan = {
         "plan_version": 1,
         "overlays": [
@@ -64,8 +71,45 @@ def test_overlays_from_plan_quota_target_not_implemented_in_s1():
              "quota_target": {"episodes": 50, "unique_aircraft": 40}},
         ],
     }
-    with pytest.raises(NotImplementedError, match="quota"):
-        overlays_from_plan(config(), plan)
+    assert plan_mode(plan) == "quota"
+    overlays = overlays_from_plan(cfg, plan)
+    assert overlays[0].tau == 0.0  # unused in quota mode
+    targets = quota_targets_from_plan(cfg, plan)
+    key = overlays[0].overlay_key
+    assert targets[key].episodes == {"train": 50, "val": 50, "test": 50}
+    assert targets[key].unique_aircraft == {"train": 40, "val": 40, "test": 40}
+
+
+def test_quota_targets_from_plan_falls_back_to_config_defaults():
+    cfg = config()
+    cfg["quota_mode"] = {
+        "target_episodes_per_cell": {"train": 300, "val": 150, "test": 150},
+        "target_unique_aircraft_per_cell": {"train": 200, "val": 100, "test": 100},
+    }
+    plan = {
+        "plan_version": 1,
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120,
+             "quota_target": True},
+        ],
+    }
+    targets = quota_targets_from_plan(cfg, plan)
+    key = overlays_from_plan(cfg, plan)[0].overlay_key
+    assert targets[key].episodes == {"train": 300, "val": 150, "test": 150}
+    assert targets[key].unique_aircraft == {"train": 200, "val": 100, "test": 100}
+
+
+def test_plan_mode_rejects_mixed_selection():
+    plan = {
+        "plan_version": 1,
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120, "tau": 0.005},
+            {"family": "freeze_fixed_value", "tier": "moderate", "duration_seconds": 120,
+             "quota_target": {"episodes": 1, "unique_aircraft": 1}},
+        ],
+    }
+    with pytest.raises(ValueError, match="all-tau"):
+        plan_mode(plan)
 
 
 def test_dry_run_summary_returns_counts_without_writing(tmp_path):

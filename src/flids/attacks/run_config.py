@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from .assembler import OverlaySpec
 from .assembler import iter_assembled_multi_chunks
+from .quota import QuotaTarget, resolve_quota_target
 
 
 _FAMILIES = {
@@ -87,32 +88,55 @@ def overlay_from_config(
     )
 
 
+def plan_mode(plan: dict) -> str:
+    """Return ``"quota"`` or ``"bernoulli"`` for a run plan; reject a mix.
+
+    A plan is homogeneous: every overlay uses ``tau`` (Bernoulli realistic
+    prevalence) or every overlay uses ``quota_target`` (ranked quota). Mixing
+    the two selection modes in one run is not supported.
+    """
+    has_tau = any(entry.get("tau") is not None for entry in plan["overlays"])
+    has_quota = any(entry.get("quota_target") is not None for entry in plan["overlays"])
+    if has_tau and has_quota:
+        raise ValueError("a run plan must be all-tau (Bernoulli) or all-quota, not mixed")
+    return "quota" if has_quota else "bernoulli"
+
+
+def _overlay_from_entry(config: dict, entry: dict) -> OverlaySpec:
+    # Quota overlays carry tau=0.0: selection is overridden by the ranked quota
+    # chosen set, so the Bernoulli probability is unused (D-038).
+    tau = float(entry["tau"]) if entry.get("tau") is not None else 0.0
+    return overlay_from_config(
+        config,
+        entry["family"],
+        entry["tier"],
+        tau=tau,
+        duration_seconds=float(entry["duration_seconds"]),
+        altitude_variant=entry.get("altitude_variant", "baro_only"),
+        episodes_per_segment=int(entry.get("episodes_per_segment", 1)),
+        onset_mode=entry.get("onset_mode", "linear_mix"),
+    )
+
+
 def overlays_from_plan(config: dict, plan: dict) -> tuple[OverlaySpec, ...]:
     """Build the overlays for one run from an already-validated run plan.
 
-    ``tau`` entries build Bernoulli overlays. ``quota_target`` entries use the
-    ranked quota selection implemented in Stage S2; until then this raises
-    ``NotImplementedError`` so a quota plan fails loudly rather than silently
-    falling back to Bernoulli selection.
+    Works for both selection modes. For a quota plan the overlays carry
+    ``tau=0.0`` (unused); the per-cell targets come from
+    :func:`quota_targets_from_plan`.
     """
-    overlays = []
+    return tuple(_overlay_from_entry(config, entry) for entry in plan["overlays"])
+
+
+def quota_targets_from_plan(config: dict, plan: dict) -> dict[str, QuotaTarget] | None:
+    """Return per-overlay quota targets, or ``None`` for a Bernoulli plan."""
+    if plan_mode(plan) != "quota":
+        return None
+    targets: dict[str, QuotaTarget] = {}
     for entry in plan["overlays"]:
-        if entry.get("tau") is None:
-            raise NotImplementedError(
-                "quota_target overlays require ranked quota selection "
-                "(Stage S2 in nextSteps.md); set 'tau' for Bernoulli mode"
-            )
-        overlays.append(overlay_from_config(
-            config,
-            entry["family"],
-            entry["tier"],
-            tau=float(entry["tau"]),
-            duration_seconds=float(entry["duration_seconds"]),
-            altitude_variant=entry.get("altitude_variant", "baro_only"),
-            episodes_per_segment=int(entry.get("episodes_per_segment", 1)),
-            onset_mode=entry.get("onset_mode", "linear_mix"),
-        ))
-    return tuple(overlays)
+        overlay = _overlay_from_entry(config, entry)
+        targets[overlay.overlay_key] = resolve_quota_target(config, entry)
+    return targets
 
 
 def dry_run_summary(

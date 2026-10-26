@@ -501,3 +501,14 @@ only then implement Stage 1 attack-generation code.
 **Decisions made:** D-038 (naming).
 **Next steps:** (1) S2 quota mode + `capacity_study.py` + proposed dataset plan (STOP for approval). (2) Then S3 HDD audit. (3) Keep one stage per session.
 **Questions for human:** None; S2 is the next unchecked stage and ends in a STOP for your approval.
+
+### 2026-10-26 — Session 5 (cont.) — Claude Code — Phase 1 (S2)
+**Goal:** Execute Stage S2 of `nextSteps.md` (quota mode + capacity study + proposed dataset plan); STOP for approval of the plan.
+**Done:** (S2.1) Extracted `assembler.segment_selection` (per-segment eligibility + overlay-keyed `selection_u`, no episode build) and `SegmentSelection`; `_assemble_keyed` reuses it (goldens unchanged, confirmed). (S2.2) New `src/flids/attacks/quota.py`: `select_quota_segments` (two passes, deterministic, chunk-order independent; lowest-`u` eligible segments per overlay×split until both the episode and unique-aircraft targets are met; `CapacityShortfallError` with a per-cell table when `fail_on_capacity_shortfall`); `QuotaTarget`, `resolve_quota_target`, `overlay_capacity`. (S2.3) `chosen_segments` threaded through `_assemble_keyed`/`iter_assembled_chunks`/`assemble_overlay`/`iter_assembled_multi_chunks`/`assemble_overlays`; quota episodes record `selection_method="ranked_quota_lowest_u_eligible_segment"`. Bernoulli stays the default. (S2.4) `run_config.plan_mode`/`overlays_from_plan` (quota overlays carry tau=0.0)/`quota_targets_from_plan`; writer gains `quota_targets` → runs pass 1 before writing, records `selection_mode` and a `quota` per-cell report; CLI `--plan` dispatches quota (incl. a quota dry-run). (S2.5) read-only `scripts/capacity_study.py` (not run) + pure `overlay_capacity` helper. (S2.6) **D-039 PROPOSED** dataset plan (A per-cell evaluation / B mixed realistic-prevalence / C Track B training). (S2.7) quota tests.
+**Ran / verified:** `.venv/Scripts/python.exe -m pytest -q` → **305 passed** (was 295). Assembler/writer goldens unchanged by the refactor (verified). Tests cover determinism, chunk-order independence (row shuffle), shortfall raise + per-cell table, unique-aircraft target honored, ranked == Bernoulli when not binding, quota end-to-end writer manifest, and capacity counts.
+**NOT verified:** No generation; `capacity_study.py` and `check_onground_nulls.py` not run on real data (human-run). Quota targets/feasibility on real data unknown until the capacity study runs. D-039 is proposed, not approved.
+**Results:** No experiment; no metrics.
+**Problems / surprises:** None.
+**Decisions made:** D-039 (PROPOSED).
+**Next steps:** (1) Human reviews/approves D-039 (part of the S4 gate). (2) S3 HDD source audit (read-only). (3) Keep one stage per session.
+**Questions for human:** Approve the D-039 dataset plan (three kinds), or adjust it? S2 stops here for that.

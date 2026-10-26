@@ -36,8 +36,16 @@ numeric details not verifiable from the paper are implementation choices.
   YAML + `--plan`/`--onset-mode` CLI that refuses a silent pilot; manifest
   additions (elapsed/chunk seconds, resolved plan, window counts, per-split
   realized τ, per-overlay aircraft/window counts) + `--progress-log`; sequence
-  builder refuses a dirty tree; D-038 canonical selection naming. Next is S2
-  (quota mode + dataset plan), which is STOP-for-approval.
+  builder refuses a dirty tree; D-038 canonical selection naming.
+- S2 is implemented and awaiting approval: `quota.py` adds ranked two-pass
+  quota selection (deterministic, chunk-independent, `fail_on_capacity_shortfall`
+  with a per-cell shortfall table), wired through `--plan` quota entries, the
+  writer (manifest `selection_mode`/`quota`), and a quota dry-run. The assembler
+  was refactored to a shared `segment_selection` helper (goldens unchanged).
+  Read-only `scripts/capacity_study.py` added (not run). **D-039 PROPOSES** a
+  three-kind dataset plan (A per-cell evaluation, B mixed realistic-prevalence,
+  C Track B training) — PROPOSED, not approved; S2 stops here for human review.
+  Next approved steps: S3 (HDD source audit) then S4 (human gate).
 - `data/hdd_data` inventory: 90 `.csv.tar` files, 11.962 GiB, spanning 90
   hourly archives across 2019-11-18, 2019-11-25, 2019-12-02 (18 hours), and
   2019-12-09. One sampled inner CSV has OpenSky decoded-state-vector columns;

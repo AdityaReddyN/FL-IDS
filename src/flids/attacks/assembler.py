@@ -186,37 +186,99 @@ def _required(overlay):
     return REQUIRED_FIELDS[overlay.attack_family]
 
 
+@dataclass(frozen=True)
+class SegmentSelection:
+    """Eligibility and selection draw for one (overlay, segment); no episodes.
+
+    This is the cheap pass-1 output: it computes everything needed to decide
+    whether and how a segment is selected (Bernoulli or ranked quota) without
+    building any episode. ``row_ok``, ``sources`` and ``starts`` are retained so
+    the assembler's pass-2 reuses the exact same eligibility, never recomputing
+    it differently.
+    """
+    icao24: str
+    segment_id: int
+    split: str
+    cell_id: str
+    n_eligible_starts: int
+    eligible: bool
+    selection_u: float
+    row_ok: np.ndarray
+    sources: np.ndarray | None
+    starts: np.ndarray
+
+
+def segment_selection(
+    seg: pd.DataFrame,
+    icao24: str,
+    segment_id,
+    overlay: OverlaySpec,
+    global_seed: int,
+    split_of: Callable[[str], str],
+    grid_degrees: float,
+) -> SegmentSelection:
+    """Compute eligibility and the overlay-keyed ``selection_u`` for one segment.
+
+    Deterministic and chunk-order independent: ``selection_u`` depends only on
+    ``(global_seed, icao24, segment_id, overlay_key)``.
+    """
+    n_rows = rows_for_duration(overlay.duration_seconds)
+    times = seg.time.to_numpy(np.int64)
+    row_ok = row_eligible(seg, _required(overlay))
+    sources = None
+    if overlay.attack_family in REPLAY_FAMILIES:
+        sources = replay_source_offsets(times, row_ok, overlay.replay_delay_s, overlay.replay_tolerance_s)
+        row_ok = row_ok & (sources >= 0)
+    if overlay.altitude_variant == "baro_plus_geo" and overlay.geoaltitude_glitch_threshold_m is not None:
+        glitch = np.zeros(len(seg), dtype=bool)
+        glitch[1:] = np.abs(np.diff(seg.geoaltitude.to_numpy(float))) > overlay.geoaltitude_glitch_threshold_m
+        row_ok = row_ok & ~glitch
+    starts = eligible_starts(seg, n_rows, row_ok, pair_valid(seg))
+    starts, _ = filter_starts_by_span(starts, times, n_rows, overlay.duration_seconds)
+    eligible = bool(len(starts))
+    u = float(overlay_selection_rng(global_seed, icao24, segment_id, overlay.overlay_key).random())
+    cell_id = _cell(_finite_median(seg.lat), _finite_median(seg.lon), grid_degrees)
+    return SegmentSelection(
+        icao24=str(icao24), segment_id=int(segment_id), split=split_of(icao24),
+        cell_id=cell_id, n_eligible_starts=len(starts), eligible=eligible,
+        selection_u=u, row_ok=row_ok, sources=sources, starts=starts,
+    )
+
+
 def _assemble_keyed(
     keyed: pd.DataFrame,
     overlay: OverlaySpec,
     global_seed: int,
     split_of: Callable[[str], str],
     grid_degrees: float,
+    chosen_segments: set | None = None,
 ) -> AssembledTables:
-    """Assemble already-keyed rows; row/step tables are built column-wise."""
+    """Assemble already-keyed rows; row/step tables are built column-wise.
+
+    When ``chosen_segments`` is given (ranked quota mode), a segment is selected
+    iff ``(icao24, segment_id, overlay_key)`` is in that set; otherwise selection
+    is the Bernoulli rule ``eligible and selection_u < tau``.
+    """
     attacked=[]; labels=[]; episodes=[]; rejected=[]; provenance=[]; windows=[]; segments=[]; overlay_selections=[]
     n_rows = rows_for_duration(overlay.duration_seconds)
+    method = "ranked_quota_lowest_u_eligible_segment" if chosen_segments is not None else "bernoulli_overlay_keyed_eligible_segment"
     for (icao24, segment_id), seg in keyed.groupby(["icao24", "segment_id"], sort=True):
         seg = seg.reset_index(drop=True)
         times = seg.time.to_numpy(np.int64)
         source_ids = seg.source_row_id.to_numpy(np.int64)
         offsets = seg.segment_row_offset.to_numpy(np.int32)
-        split = split_of(icao24)
-        row_ok = row_eligible(seg, _required(overlay))
-        sources = None
-        if overlay.attack_family in REPLAY_FAMILIES:
-            sources = replay_source_offsets(times, row_ok, overlay.replay_delay_s, overlay.replay_tolerance_s)
-            row_ok &= sources >= 0
-        if overlay.altitude_variant == "baro_plus_geo" and overlay.geoaltitude_glitch_threshold_m is not None:
-            glitch = np.zeros(len(seg), dtype=bool)
-            glitch[1:] = np.abs(np.diff(seg.geoaltitude.to_numpy(float))) > overlay.geoaltitude_glitch_threshold_m
-            row_ok &= ~glitch
-        starts = eligible_starts(seg, n_rows, row_ok, pair_valid(seg))
-        starts, _ = filter_starts_by_span(starts, times, n_rows, overlay.duration_seconds)
-        eligible = bool(len(starts))
-        u = float(overlay_selection_rng(global_seed, icao24, segment_id, overlay.overlay_key).random())
-        selected = eligible and u < overlay.tau
-        segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=_cell(_finite_median(seg.lat), _finite_median(seg.lon), grid_degrees), n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
+        sel = segment_selection(seg, icao24, segment_id, overlay, global_seed, split_of, grid_degrees)
+        split = sel.split
+        row_ok = sel.row_ok
+        sources = sel.sources
+        starts = sel.starts
+        eligible = sel.eligible
+        u = sel.selection_u
+        if chosen_segments is None:
+            selected = eligible and u < overlay.tau
+        else:
+            selected = (str(icao24), int(segment_id), overlay.overlay_key) in chosen_segments
+        segments.append(dict(icao24=icao24, segment_id=segment_id, split=split, n_rows=len(seg), cell_id=sel.cell_id, n_eligible_starts=len(starts), eligible=eligible, selection_u=u, selected=selected))
         overlay_selections.append(dict(icao24=icao24,segment_id=segment_id,split=split,overlay_key=overlay.overlay_key,attack_family=overlay.attack_family,tier=overlay.tier,n_eligible_starts=len(starts),eligible=eligible,selection_u=u,tau_requested=overlay.tau,selected=selected,chosen=selected))
 
         multipliers = np.zeros(len(seg), dtype=np.float64)
@@ -261,7 +323,7 @@ def _assemble_keyed(
                     replay_delays[active_offsets]=result.delays[active_delays]
                 _band=_episode_speed_band(seg,start,count)
                 _freeze_src=int(source_ids[result.anchor_offset]) if (overlay.attack_family=="freeze_fixed_value" and result.anchor_offset is not None) else None
-                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band=_band,altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=_freeze_src,selection_method="bernoulli_overlay_keyed_eligible_segment",tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
+                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band=_band,altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=_freeze_src,selection_method=method,tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 changed_by_row = result.changed_fields
                 changed_indices = np.fromiter((i for i, fields in enumerate(changed_by_row) if fields), dtype=np.int64)
                 for offset in changed_indices:
@@ -327,25 +389,27 @@ def iter_assembled_chunks(
     split_of: Callable[[str], str],
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
+    chosen_segments: set | None = None,
 ):
     """Yield schema-validated tables for bounded groups of whole segments.
 
     The keyed input is retained in memory; assembled output is bounded by
     ``max_segments_per_chunk`` and can be written incrementally by the Stage 1
-    writer. Segments are never split across yielded chunks.
+    writer. Segments are never split across yielded chunks. ``chosen_segments``
+    (ranked quota mode) overrides the Bernoulli selection predicate.
     """
     if max_segments_per_chunk < 1:
         raise ValueError("max_segments_per_chunk must be at least one")
     keyed = add_natural_keys(df).sort_values(["icao24","segment_id","time"],kind="mergesort").reset_index(drop=True)
     group_start = keyed[["icao24","segment_id"]].ne(keyed[["icao24","segment_id"]].shift()).any(axis=1).to_numpy().nonzero()[0]
     if not len(group_start):
-        yield _assemble_keyed(keyed,overlay,global_seed,split_of,grid_degrees)
+        yield _assemble_keyed(keyed,overlay,global_seed,split_of,grid_degrees,chosen_segments)
         return
     bounds = np.append(group_start, len(keyed))
     for first_group in range(0,len(group_start),max_segments_per_chunk):
         last_group = min(first_group+max_segments_per_chunk,len(group_start))
         chunk = keyed.iloc[bounds[first_group]:bounds[last_group]]
-        yield _assemble_keyed(chunk,overlay,global_seed,split_of,grid_degrees)
+        yield _assemble_keyed(chunk,overlay,global_seed,split_of,grid_degrees,chosen_segments)
 
 
 def assemble_overlay(
@@ -355,6 +419,7 @@ def assemble_overlay(
     split_of: Callable[[str], str],
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
+    chosen_segments: set | None = None,
 ) -> AssembledTables:
     """Assemble one validated overlay without reading config or writing files.
 
@@ -363,7 +428,7 @@ def assemble_overlay(
     Use :func:`iter_assembled_chunks` when writing large runs to bound output
     memory rather than retaining all seven output tables at once.
     """
-    chunks = list(iter_assembled_chunks(df,overlay,global_seed,split_of,grid_degrees,max_segments_per_chunk))
+    chunks = list(iter_assembled_chunks(df,overlay,global_seed,split_of,grid_degrees,max_segments_per_chunk,chosen_segments))
     frames = {}
     for name in TABLE_NAMES:
         parts = [getattr(chunk,name) for chunk in chunks]
@@ -508,8 +573,14 @@ def iter_assembled_multi_chunks(
     split_of: Callable[[str], str],
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
+    chosen_segments: set | None = None,
 ):
-    """Yield bounded merged chunks, enforcing the approved one-overlay rule."""
+    """Yield bounded merged chunks, enforcing the approved one-overlay rule.
+
+    ``chosen_segments`` (ranked quota mode) is a set of
+    ``(icao24, segment_id, overlay_key)`` applied to every overlay's per-segment
+    selection; it overrides the Bernoulli predicate.
+    """
     if not overlays:
         raise ValueError("at least one overlay is required")
     keys = [overlay.overlay_key for overlay in overlays]
@@ -520,13 +591,13 @@ def iter_assembled_multi_chunks(
     keyed = add_natural_keys(df).sort_values(["icao24", "segment_id", "time"], kind="mergesort").reset_index(drop=True)
     group_start = keyed[["icao24", "segment_id"]].ne(keyed[["icao24", "segment_id"]].shift()).any(axis=1).to_numpy().nonzero()[0]
     if not len(group_start):
-        yield _merge_overlay_chunk([_assemble_keyed(keyed, overlay, global_seed, split_of, grid_degrees) for overlay in overlays], overlays)
+        yield _merge_overlay_chunk([_assemble_keyed(keyed, overlay, global_seed, split_of, grid_degrees, chosen_segments) for overlay in overlays], overlays)
         return
     bounds = np.append(group_start, len(keyed))
     for first_group in range(0, len(group_start), max_segments_per_chunk):
         last_group = min(first_group + max_segments_per_chunk, len(group_start))
         chunk = keyed.iloc[bounds[first_group]:bounds[last_group]]
-        pieces = [_assemble_keyed(chunk, overlay, global_seed, split_of, grid_degrees) for overlay in overlays]
+        pieces = [_assemble_keyed(chunk, overlay, global_seed, split_of, grid_degrees, chosen_segments) for overlay in overlays]
         yield _merge_overlay_chunk(pieces, overlays)
 
 
@@ -537,9 +608,10 @@ def assemble_overlays(
     split_of: Callable[[str], str],
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
+    chosen_segments: set | None = None,
 ) -> AssembledTables:
     """Assemble multiple overlays with lexicographic conflict resolution."""
-    chunks = list(iter_assembled_multi_chunks(df, overlays, global_seed, split_of, grid_degrees, max_segments_per_chunk))
+    chunks = list(iter_assembled_multi_chunks(df, overlays, global_seed, split_of, grid_degrees, max_segments_per_chunk, chosen_segments))
     frames = {}
     for name in TABLE_NAMES:
         parts = [getattr(chunk, name) for chunk in chunks]

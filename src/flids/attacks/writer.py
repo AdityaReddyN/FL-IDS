@@ -18,6 +18,7 @@ from .config import UnapprovedConfigError, require_approved
 from .fingerprint import content_fingerprint, schema_fingerprint
 from .manifest import build_manifest, git_dirty, library_versions, write_manifest
 from .plausibility import build_plausibility_report
+from .quota import select_quota_segments
 from .schemas import TABLE_NAMES
 
 
@@ -75,6 +76,7 @@ def write_overlay_tables(
     config_path: str | Path,
     output_dir: str | Path,
     resolved_plan: Sequence[Mapping] | None = None,
+    quota_targets: Mapping | None = None,
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
     progress_callback: Callable[[Mapping], None] | None = None,
@@ -101,6 +103,23 @@ def write_overlay_tables(
     overlays = tuple(sorted(overlays, key=lambda item: item.overlay_key))
     if not overlays or len({item.overlay_key for item in overlays}) != len(overlays):
         raise WriterError("at least one overlay with a unique overlay_key is required")
+
+    # Ranked quota selection runs a global pass 1 before any directory is made
+    # so a capacity shortfall fails before writing anything.
+    chosen_segments = None
+    quota_report = None
+    if quota_targets is not None:
+        fail_on_shortfall = bool((config.get("quota_mode") or {}).get("fail_on_capacity_shortfall", True))
+        quota_result = select_quota_segments(
+            df, overlays, global_seed, split_of, quota_targets,
+            fail_on_capacity_shortfall=fail_on_shortfall,
+        )
+        chosen_segments = quota_result["chosen"]
+        quota_report = {
+            "per_cell": quota_result["per_cell"],
+            "shortfall": quota_result["shortfall"],
+            "fail_on_capacity_shortfall": quota_result["fail_on_capacity_shortfall"],
+        }
 
     try:
         target.mkdir(parents=True, exist_ok=False)
@@ -136,6 +155,7 @@ def write_overlay_tables(
         chunks = iter(iter_assembled_multi_chunks(
             df, overlays, global_seed, split_of,
             max_segments_per_chunk=max_segments_per_chunk,
+            chosen_segments=chosen_segments,
         ))
         for chunk_index in range(1, total_chunks + 1):
             if progress_callback is not None:
@@ -237,7 +257,7 @@ def write_overlay_tables(
     for name in TABLE_NAMES:
         path = target / f"{name}.parquet"
         if not path.exists():
-            empty = pa.Table.from_pandas(getattr(next(iter_assembled_multi_chunks(df.iloc[:0], overlays, global_seed, split_of)), name), preserve_index=False)
+            empty = pa.Table.from_pandas(getattr(next(iter_assembled_multi_chunks(df.iloc[:0], overlays, global_seed, split_of, chosen_segments=chosen_segments)), name), preserve_index=False)
             pq.write_table(empty, path, compression="zstd")
 
     plausibility_report = {
@@ -279,6 +299,8 @@ def write_overlay_tables(
         "overlay_merge_order": [item.overlay_key for item in overlays],
         "overlay_merge_scope": "lexicographic_overlay_key; at_most_one_selected_overlay_per_segment; conflicts_logged_as_overlay_conflict",
         "resolved_plan": [dict(entry) for entry in resolved_plan] if resolved_plan is not None else None,
+        "selection_mode": "ranked_quota" if quota_targets is not None else "bernoulli",
+        "quota": quota_report,
         "total_elapsed_seconds": total_elapsed_seconds,
         "chunk_seconds_summary": _chunk_seconds_summary(chunk_seconds),
         "window_counts_by_label_stratum_family_split": _window_lsfs_to_nested(window_lsfs),
