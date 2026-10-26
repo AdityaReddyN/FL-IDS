@@ -37,7 +37,13 @@ from flids.attacks.calibration import (  # noqa: E402
 from flids.data.clean import FEATURES  # noqa: E402
 
 SPLIT_NAMES = ("train", "val", "test")
-MAGNITUDES = (500.0, 1000.0, 2000.0, 4000.0, 6000.0, 8000.0, 12000.0, 16000.0)
+# Finer grid through the fast-band transitions (100-200 recall climbs over
+# 1000-2000 m; 200_plus over 2000-4000 m), so tiers can be placed at the
+# ~10/30/60/90% boundary-recall targets.
+MAGNITUDES = (
+    500.0, 1000.0, 1200.0, 1400.0, 1600.0, 1800.0, 2000.0, 2200.0, 2500.0,
+    2800.0, 3200.0, 3600.0, 4000.0, 5000.0, 6000.0, 8000.0, 12000.0, 16000.0,
+)
 GROSS_CONTROL_M = 16000.0
 ALT_TIER_SHIFTS = {"subtle": 60.0, "moderate": 125.0, "blatant": 300.0}
 MAX_CONTACT_LAG_SECONDS = 30.0
