@@ -58,6 +58,14 @@ Updated 2026-10-26 (D-036/D-037). Living document; keep it current.
   detectability (how many windows in an episode are flagged, and interior-only
   windows) is a separate post-hoc stratum computed at Phase 2/3, not by Gate 1b.
 
+## Generation output (S7)
+- `attacked_rows` and `step_labels` are written **1:1 with the source table**
+  (every source row, with `mod == orig` outside accepted episodes), so a
+  generated run is as large as the source. The "accepted-episode segments only"
+  output amendment is **deferred to full-scale generation** (D-045). S7 runs on
+  a deterministic aircraft-hash **working subset** (default 10%), not the full
+  207M-row source; full-scale generation also needs a streaming input path.
+
 ## Results
 - E-002 (shortcut audit) and E-003 (binary LSTM, mean test ROC-AUC 0.5742)
   are PILOT-DERIVED (D-036) and are not results. E-002's per-feature-summary

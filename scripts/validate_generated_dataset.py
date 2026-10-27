@@ -30,8 +30,10 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from flids.attacks.calibration import step_fraction  # noqa: E402
 from flids.attacks.eligibility import REQUIRED_FIELDS, row_eligible  # noqa: E402
 from flids.attacks.episode import HORIZONTAL_FAMILIES, REPLAY_FAMILIES  # noqa: E402
+from flids.attacks.fingerprint import content_fingerprint  # noqa: E402
 from flids.attacks.ramps import ramp_multipliers  # noqa: E402
 from flids.attacks.schemas import FEATURE_FIELDS, TABLE_NAMES, validate_table  # noqa: E402
 from flids.attacks.windows import label_windows  # noqa: E402
@@ -55,6 +57,14 @@ def _required(family: str, altitude_variant) -> tuple:
     if family == "altitude_constant_deviation":
         return REQUIRED_FIELDS["altitude_manipulation_baro_plus_geo" if altitude_variant == "baro_plus_geo" else "altitude_manipulation"]
     return REQUIRED_FIELDS[family]
+
+
+def _group(rows):
+    """Group first-step tuples by (tier, split); tier is index 1, split index 2."""
+    out: dict = {}
+    for row in rows:
+        out.setdefault((row[1], row[2]), []).append(row)
+    return out.items()
 
 
 def _displacement_m(lat0, lon0, lat1, lon1):
@@ -232,6 +242,51 @@ def validate(run_dir: Path, source_path: Path, split_path: Path | None = None) -
         within = abs((realized or 0.0) - requested) <= 3 * se + 1e-9
         tau_detail[key] = {"requested": requested, "realized": realized, "n_eligible": n, "within_3se": bool(within)}
     record("realized_tau_within_binomial", all(d["within_3se"] for d in tau_detail.values()) if tau_detail else True, by_overlay=tau_detail)
+
+    # (k) source alignment: order + fingerprint (D-045).
+    k_problems = []
+    sort_cols = [c for c in ("icao24", "segment_id", "time") if c in source.columns] or ["icao24", "time"]
+    if not source.drop(columns=["source_row_id"]).equals(
+            source.drop(columns=["source_row_id"]).sort_values(sort_cols, kind="mergesort").reset_index(drop=True)):
+        k_problems.append(f"source not sorted by {sort_cols} (source_row_id order would not align)")
+    if len(attacked) != len(source):
+        k_problems.append("attacked_rows count != source count")
+    record("source_row_id_alignment", not k_problems, problems=k_problems,
+           source_content_fingerprint=content_fingerprint(source.drop(columns=["source_row_id"])),
+           source_rows=int(len(source)))
+
+    # (l) ratio-tier first-step displacement == r * p95[band] (D-044), and
+    # (m) oracle boundary recall per tier/split (descriptive) on the generated episodes.
+    plan_by_key = {e.get("overlay_key"): e for e in (manifest.get("resolved_plan") or [])}
+    first_step = []  # (overlay_key, tier, split, band, disp, r, p95, step_frac)
+    for row in episodes.itertuples():
+        if row.attack_family != "constant_deviation":
+            continue
+        ov = plan_by_key.get(row.overlay_key, {})
+        r, table = ov.get("tier_ratio_r"), ov.get("band_p95_m")
+        seg_rows = src_indexed.loc[[(row.icao24, row.segment_id)]]
+        win = seg_rows.iloc[row.start_row_offset: row.start_row_offset + row.n_rows]
+        ar = at.set_index("source_row_id").loc[win["source_row_id"].to_numpy()]
+        active = ar["is_attack_row"].to_numpy(bool)
+        if not active.any():
+            continue
+        i0 = int(np.flatnonzero(active)[0])
+        disp = float(_displacement_m(ar["orig_lat"].to_numpy()[i0:i0 + 1], ar["orig_lon"].to_numpy()[i0:i0 + 1],
+                                     ar["mod_lat"].to_numpy()[i0:i0 + 1], ar["mod_lon"].to_numpy()[i0:i0 + 1])[0])
+        p95 = float(table[row.speed_band]) if (table and row.speed_band in table) else None
+        first_step.append((row.overlay_key, row.tier, row.split, row.speed_band, disp, r, p95,
+                           step_fraction("abrupt" if row.onset_mode == "abrupt" else "linear_mix")))
+    l_problems = []
+    for key, tier, split, band, disp, r, p95, frac in first_step:
+        if r is not None and p95 is not None and not math.isclose(disp, r * p95, rel_tol=0.05, abs_tol=5.0):
+            l_problems.append(f"{key}/{band}: first-step {disp:.1f} != r*p95 {r * p95:.1f}")
+    record("ratio_tier_first_step_equals_r_p95", not l_problems, problems=l_problems[:10],
+           n_constant_episodes=len(first_step))
+    recall = {}
+    for (tier, split), rows in _group(first_step):
+        hits = [1.0 if (p95 is not None and disp >= p95) else 0.0 for (_k, _t, _s, _b, disp, _r, p95, _f) in rows]
+        recall.setdefault(str(tier), {})[str(split)] = {"n": len(hits), "boundary_recall": (sum(hits) / len(hits)) if hits else None}
+    record("oracle_boundary_recall_by_tier_split", True, recall=recall)
 
     # (j) per-family displacement quantiles (descriptive; always passes).
     quant = {}

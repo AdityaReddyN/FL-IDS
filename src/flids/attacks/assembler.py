@@ -348,7 +348,7 @@ def _assemble_keyed(
                     replay_delays[active_offsets]=result.delays[active_delays]
                 _band=_episode_speed_band(seg,start,count)
                 _freeze_src=int(source_ids[result.anchor_offset]) if (overlay.attack_family=="freeze_fixed_value" and result.anchor_offset is not None) else None
-                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band=_band,altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=overlay.magnitude_m,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=_freeze_src,selection_method=method,tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
+                episodes.append(dict(episode_id=eid,overlay_key=overlay.overlay_key,icao24=icao24,segment_id=segment_id,split=split,attack_family=overlay.attack_family,attack_subtype=overlay.subtype or overlay.attack_family,tier=overlay.tier,onset_mode=overlay.onset_mode,duration_seconds_requested=overlay.duration_seconds,n_rows=count,start_row_offset=start,end_row_offset=start+count-1,start_time=int(times[start]),end_time=int(times[start+count-1]),start_source_row_id=int(source_ids[start]),end_source_row_id=int(source_ids[start+count-1]),grid_cell_id=_cell(seg.lat.iloc[start],seg.lon.iloc[start],grid_degrees),speed_band=_band,altitude_variant=overlay.altitude_variant,horizontal_magnitude_m=magnitude,bearing_deg=bearing,shared_altitude_shift_m=shift,gaussian_sigma_m=overlay.sigma_m,eq12_kappa=overlay.kappa,replay_delay_seconds_requested=overlay.replay_delay_s if sources is not None else None,replay_delay_seconds_effective=float(np.nanmedian(result.delays)) if result.delays is not None else None,freeze_anchor_source_row_id=_freeze_src,selection_method=method,tau_requested=overlay.tau,dataset_mode=overlay.dataset_mode,seed_derivation=f"sha256(global_seed|icao24|segment_id|selection|{overlay.overlay_key}); placement/episode/params independent",parameters_json=json.dumps(spec.__dict__,sort_keys=True),accepted=True,rejection_reason=None))
                 changed_by_row = result.changed_fields
                 changed_indices = np.fromiter((i for i, fields in enumerate(changed_by_row) if fields), dtype=np.int64)
                 for offset in changed_indices:
@@ -461,19 +461,34 @@ def assemble_overlay(
     return AssembledTables(*(frames[name] for name in TABLE_NAMES))
 
 
-def _merge_overlay_chunk(per_overlay, overlays) -> AssembledTables:
+def _merge_overlay_chunk(per_overlay, overlays, priority_keys=None) -> AssembledTables:
     """Resolve selected-overlay conflicts in sorted overlay-key order.
 
     ``segments`` is the final merged summary. Its selection detail describes
     the winning overlay when one was selected, otherwise the first eligible
     overlay (or the lexicographically first overlay if none are eligible).
     Complete per-overlay Bernoulli evidence lives in ``overlay_selections``.
+
+    ``priority_keys`` (optional) sets the conflict-resolution order explicitly
+    (e.g. run-plan order for a joint quota run, D-045); the default is sorted
+    overlay-key order.
     """
-    overlay_order = sorted(overlays, key=lambda item: item.overlay_key)
+    if priority_keys is not None:
+        rank = {key: i for i, key in enumerate(priority_keys)}
+        overlay_order = sorted(overlays, key=lambda item: rank[item.overlay_key])
+    else:
+        overlay_order = sorted(overlays, key=lambda item: item.overlay_key)
     by_key = {item.overlay_key: tables for item, tables in zip(overlays, per_overlay)}
     selection_frames = [by_key[item.overlay_key].overlay_selections for item in overlay_order]
     all_selections = pd.concat(selection_frames, ignore_index=True)
-    all_selections = all_selections.sort_values(["icao24", "segment_id", "overlay_key"], kind="mergesort").reset_index(drop=True)
+    if priority_keys is not None:
+        rank = {key: i for i, key in enumerate(priority_keys)}
+        order_key = all_selections["overlay_key"].map(rank).to_numpy()
+    else:
+        order_key = all_selections["overlay_key"].to_numpy()
+    all_selections = (all_selections.assign(_ord=order_key)
+                      .sort_values(["icao24", "segment_id", "_ord"], kind="mergesort")
+                      .drop(columns="_ord").reset_index(drop=True))
     selection_by_segment = {
         (str(icao24), int(segment_id)): group.reset_index(drop=True)
         for (icao24, segment_id), group in all_selections.groupby(["icao24", "segment_id"], sort=False)
@@ -599,6 +614,7 @@ def iter_assembled_multi_chunks(
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
     chosen_segments: set | None = None,
+    priority_keys=None,
 ):
     """Yield bounded merged chunks, enforcing the approved one-overlay rule.
 
@@ -616,14 +632,14 @@ def iter_assembled_multi_chunks(
     keyed = add_natural_keys(df).sort_values(["icao24", "segment_id", "time"], kind="mergesort").reset_index(drop=True)
     group_start = keyed[["icao24", "segment_id"]].ne(keyed[["icao24", "segment_id"]].shift()).any(axis=1).to_numpy().nonzero()[0]
     if not len(group_start):
-        yield _merge_overlay_chunk([_assemble_keyed(keyed, overlay, global_seed, split_of, grid_degrees, chosen_segments) for overlay in overlays], overlays)
+        yield _merge_overlay_chunk([_assemble_keyed(keyed, overlay, global_seed, split_of, grid_degrees, chosen_segments) for overlay in overlays], overlays, priority_keys)
         return
     bounds = np.append(group_start, len(keyed))
     for first_group in range(0, len(group_start), max_segments_per_chunk):
         last_group = min(first_group + max_segments_per_chunk, len(group_start))
         chunk = keyed.iloc[bounds[first_group]:bounds[last_group]]
         pieces = [_assemble_keyed(chunk, overlay, global_seed, split_of, grid_degrees, chosen_segments) for overlay in overlays]
-        yield _merge_overlay_chunk(pieces, overlays)
+        yield _merge_overlay_chunk(pieces, overlays, priority_keys)
 
 
 def assemble_overlays(
@@ -634,9 +650,10 @@ def assemble_overlays(
     grid_degrees: float = 5.0,
     max_segments_per_chunk: int = 64,
     chosen_segments: set | None = None,
+    priority_keys=None,
 ) -> AssembledTables:
-    """Assemble multiple overlays with lexicographic conflict resolution."""
-    chunks = list(iter_assembled_multi_chunks(df, overlays, global_seed, split_of, grid_degrees, max_segments_per_chunk, chosen_segments))
+    """Assemble multiple overlays with lexicographic (or plan-order) conflict resolution."""
+    chunks = list(iter_assembled_multi_chunks(df, overlays, global_seed, split_of, grid_degrees, max_segments_per_chunk, chosen_segments, priority_keys))
     frames = {}
     for name in TABLE_NAMES:
         parts = [getattr(chunk, name) for chunk in chunks]

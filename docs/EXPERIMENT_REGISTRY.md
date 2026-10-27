@@ -86,3 +86,45 @@ files, never estimated.
 - **Key results (from `manifest.json`):** table rows: attacked_rows 2,970,285; step_labels 2,970,285; windows 246,200; segments 21,389; overlay_selections 149,723; episodes 263; modified_row_provenance 3,142; rejected_candidates 63. Merged: 263 accepted episodes, 3,156 attack rows, 2,630 effective rows. Accepted by family: altitude_constant_deviation 59; random_gaussian_deviation 49; freeze_fixed_value 44; replay_partial_field 43; constant_deviation 39; replay_full_field 29; gradual_deviation 0. Rejections: insufficient_effective_rows 48 (all gradual); no_measurable_change 7 (freeze 6, replay_partial 1); overlay_conflict 4 (replay_full 2, constant 1, freeze 1); no_freeze_anchor 3; altitude_out_of_range 1. Realized tau (chosen/eligible): altitude 0.00606, constant 0.00407, freeze 0.00553, gradual 0.00501, gaussian 0.00511, replay_full 0.00386, replay_partial 0.00575.
 - **Result files:** `manifest.json`, eight Parquet tables, `plausibility_report.json`, `plots/` in the run directory.
 - **Conclusion / caveats:** Structural validators passed only; no semantic validation against the source. `episodes.speed_band` is `unknown` and `freeze_anchor_source_row_id` null for all episodes; `onground` NaN coerced to True. Pilot scale; one tier/duration/variant; zero gradual episodes. Directories `stage1_seed_42`, `_retry1`, `_retry2`, `_retry3` are incomplete partial attempts. All are immutable.
+
+### E-005 — Kind A per-cell evaluation generation (HDD subset)
+- **Status:** planned
+- **Date:** 2026-10-27
+- **Phase:** 1 (S7, D-045)
+- **Hypothesis / purpose:** Generate the per-cell evaluation dataset (D-039 kind A) as ONE joint quota run (one overlay per segment, resolved in plan order) on the aircraft-hash working subset of `hdd_clean_v1`, for per-family/tier/duration recall with boundary vs interior-only strata.
+- **Data version:** `data/processed/hdd_clean_v1_subset_<frac>pct.parquet` (subset content_fingerprint recorded at run time); split `data/processed/hdd_clean_v1/split_aircraft.json`.
+- **Method / model:** `scripts/run_stage7.py` → `generate_attack_v3.py --plan plan_A_per_cell_eval.yaml --conflict-order plan --input <subset>`; ratio tiers (D-044); quota mode.
+- **Run plan:** `configs/run_plans/plan_A_per_cell_eval.yaml` (sha256 63e1d0f3439d10e7…)
+- **Seeds:** 42
+- **Git commit:** (filled at generation; writer records it + git_dirty=false)
+- **Key results:** (from manifest after the human run)
+- **Result files:** `data/attack_generation_v3/stage7_A/`; validation `results/stage7/validate_A.json`
+- **Conclusion / caveats:** Subset-scale; `attacked_rows` written 1:1 with the source (full-scale 'accepted-segments-only' amendment deferred, D-045). Not run yet.
+
+### E-006 — Kind B mixed realistic-prevalence generation (HDD subset)
+- **Status:** planned
+- **Date:** 2026-10-27
+- **Phase:** 1 (S7, D-045)
+- **Hypothesis / purpose:** Generate the mixed realistic-prevalence set (D-039 kind B): all seven families, Bernoulli tau=0.005, one overlay per segment.
+- **Data version:** same subset as E-005; split `hdd_clean_v1/split_aircraft.json`.
+- **Method / model:** `generate_attack_v3.py --plan plan_B_mixed_realistic.yaml --input <subset>` (lexicographic merge).
+- **Run plan:** `configs/run_plans/plan_B_mixed_realistic.yaml` (sha256 09fee4d6505009ab…)
+- **Seeds:** 42
+- **Git commit:** (filled at generation)
+- **Key results:** (from manifest)
+- **Result files:** `data/attack_generation_v3/stage7_B/`; `results/stage7/validate_B.json`
+- **Conclusion / caveats:** Subset-scale; attacked_rows 1:1 with source (D-045). Not run yet.
+
+### E-007 — Kind C Track B training generation (HDD subset)
+- **Status:** planned
+- **Date:** 2026-10-27
+- **Phase:** 1 (S7, D-045)
+- **Hypothesis / purpose:** Generate the mixed Track B training set (D-039 kind C): all families, larger tau (0.05) for enough attacked windows; train aircraft only via the fixed split.
+- **Data version:** same subset as E-005; split `hdd_clean_v1/split_aircraft.json`.
+- **Method / model:** `generate_attack_v3.py --plan plan_C_trackB_training.yaml --input <subset>`.
+- **Run plan:** `configs/run_plans/plan_C_trackB_training.yaml` (sha256 1ef62b2b0187f2ee…)
+- **Seeds:** 42
+- **Git commit:** (filled at generation)
+- **Key results:** (from manifest)
+- **Result files:** `data/attack_generation_v3/stage7_C/`; `results/stage7/validate_C.json`
+- **Conclusion / caveats:** Subset-scale; attacked_rows 1:1 with source (D-045). Not run yet.

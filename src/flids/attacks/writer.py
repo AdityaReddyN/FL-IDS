@@ -77,6 +77,7 @@ def write_overlay_tables(
     output_dir: str | Path,
     resolved_plan: Sequence[Mapping] | None = None,
     quota_targets: Mapping | None = None,
+    conflict_priority: Sequence[str] | None = None,
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
     progress_callback: Callable[[Mapping], None] | None = None,
@@ -100,7 +101,11 @@ def write_overlay_tables(
     if max_segments_per_chunk < 1:
         raise ValueError("max_segments_per_chunk must be at least one")
     overlays = (overlay,) if isinstance(overlay, OverlaySpec) else tuple(overlay)
-    overlays = tuple(sorted(overlays, key=lambda item: item.overlay_key))
+    # Plan-order conflict resolution (D-045) keeps the given order; otherwise the
+    # approved lexicographic overlay-key order.
+    if conflict_priority is None:
+        overlays = tuple(sorted(overlays, key=lambda item: item.overlay_key))
+    priority_keys = list(conflict_priority) if conflict_priority is not None else None
     if not overlays or len({item.overlay_key for item in overlays}) != len(overlays):
         raise WriterError("at least one overlay with a unique overlay_key is required")
 
@@ -155,7 +160,7 @@ def write_overlay_tables(
         chunks = iter(iter_assembled_multi_chunks(
             df, overlays, global_seed, split_of,
             max_segments_per_chunk=max_segments_per_chunk,
-            chosen_segments=chosen_segments,
+            chosen_segments=chosen_segments, priority_keys=priority_keys,
         ))
         for chunk_index in range(1, total_chunks + 1):
             if progress_callback is not None:
@@ -257,7 +262,7 @@ def write_overlay_tables(
     for name in TABLE_NAMES:
         path = target / f"{name}.parquet"
         if not path.exists():
-            empty = pa.Table.from_pandas(getattr(next(iter_assembled_multi_chunks(df.iloc[:0], overlays, global_seed, split_of, chosen_segments=chosen_segments)), name), preserve_index=False)
+            empty = pa.Table.from_pandas(getattr(next(iter_assembled_multi_chunks(df.iloc[:0], overlays, global_seed, split_of, chosen_segments=chosen_segments, priority_keys=priority_keys)), name), preserve_index=False)
             pq.write_table(empty, path, compression="zstd")
 
     plausibility_report = {

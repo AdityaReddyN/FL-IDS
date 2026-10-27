@@ -157,6 +157,18 @@ def test_overlay_rejects_too_few_effective_rows() -> None:
     )
 
 
+def test_joint_merge_resolves_conflicts_in_plan_order() -> None:
+    constant = overlay(attack_family="constant_deviation", subtype="constant", magnitude_m=5000.0, tau=1.0)
+    gaussian = overlay(attack_family="random_gaussian_deviation", subtype="gaussian", magnitude_m=None, sigma_m=500.0, tau=1.0)
+    # Default (lexicographic): constant_deviation sorts before random_gaussian.
+    default = assemble_overlays(frame(), [constant, gaussian], 7, split_of)
+    assert set(default.episodes.overlay_key.unique()) == {constant.overlay_key}
+    # Plan order [gaussian, constant]: gaussian wins every conflict.
+    reordered = assemble_overlays(frame(), [gaussian, constant], 7, split_of,
+                                  priority_keys=[gaussian.overlay_key, constant.overlay_key])
+    assert set(reordered.episodes.overlay_key.unique()) == {gaussian.overlay_key}
+
+
 def test_null_onground_is_ineligible_and_carried_through() -> None:
     data = frame()
     # Null onground on one row inside the long train segment; the row must be

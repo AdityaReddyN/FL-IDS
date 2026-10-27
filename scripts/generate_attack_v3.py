@@ -36,6 +36,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "attack_v3_stage1.yaml")
     parser.add_argument("--out", type=Path, required=True, help="new run directory under data/attack_generation_v3")
+    parser.add_argument("--input", type=Path, default=None, help="override the config cleaned-table input (e.g. a working subset)")
+    parser.add_argument("--conflict-order", choices=("key", "plan"), default="key",
+                        help="overlay conflict resolution: lexicographic key (default) or run-plan order (kind A joint run)")
     parser.add_argument("--dry-run", action="store_true", help="print counts only; write nothing")
     parser.add_argument("--plan", type=Path, default=None,
                         help="run-plan YAML listing overlays; mutually exclusive with the explicit overlay flags")
@@ -97,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     overlays, quota_targets = _resolve_overlays(args, config)
     resolved_plan = [asdict(overlay) for overlay in overlays]
     print(json.dumps({"resolved_plan": resolved_plan}, indent=2, sort_keys=True))
-    input_path = Path(config["input"]["cleaned_table"])
+    input_path = args.input if args.input is not None else Path(config["input"]["cleaned_table"])
     if not input_path.is_absolute():
         input_path = ROOT / input_path
     split_path = Path(config["splits"]["fixed_aircraft_split"])
@@ -162,6 +165,7 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=resolved_out,
             resolved_plan=resolved_plan,
             quota_targets=quota_targets,
+            conflict_priority=[o.overlay_key for o in overlays] if args.conflict_order == "plan" else None,
             max_segments_per_chunk=args.segments_per_chunk,
             repo_root=ROOT,
             progress_callback=progress_callback,

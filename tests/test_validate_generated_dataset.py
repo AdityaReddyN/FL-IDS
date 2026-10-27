@@ -66,6 +66,31 @@ def test_validator_passes_on_a_clean_run(tmp_path, monkeypatch):
     assert report["checks"]["windows_recomputed"]["passed"]
 
 
+def test_validator_checks_ratio_tier_first_step(tmp_path, monkeypatch):
+    from dataclasses import asdict
+    validator = _load_validator()
+    frame = _source_frame()
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("status: approved\n", encoding="utf-8")
+    monkeypatch.setattr(writer, "git_dirty", lambda _root: False)
+    p95 = {"0_50": 477.0, "50_100": 829.0, "100_200": 1654.0, "200_plus": 2383.0}
+    overlay = OverlaySpec("constant_deviation", "moderate", subtype="constant",
+                          duration_seconds=120, onset_mode="abrupt", tau=1.0,
+                          tier_ratio_r=1.2, band_p95_m=p95)
+    run_dir = tmp_path / "run"
+    writer.write_overlay_tables(frame, overlay, 7, split_of, {"status": "approved"},
+                                config_path=config_path, output_dir=run_dir,
+                                resolved_plan=[asdict(overlay)], max_segments_per_chunk=8)
+    source_path = tmp_path / "source.parquet"
+    frame.to_parquet(source_path, index=False)
+    report = validator.validate(run_dir, source_path)
+    assert report["passed"], {k: v for k, v in report["checks"].items() if not v["passed"]}
+    fs = report["checks"]["ratio_tier_first_step_equals_r_p95"]
+    assert fs["passed"] and fs["n_constant_episodes"] >= 1
+    assert report["checks"]["source_row_id_alignment"]["passed"]
+    assert "oracle_boundary_recall_by_tier_split" in report["checks"]
+
+
 def test_validator_detects_tampered_source_values(tmp_path, monkeypatch):
     validator = _load_validator()
     run_dir, source_path, frame = _write_run(tmp_path, monkeypatch)
