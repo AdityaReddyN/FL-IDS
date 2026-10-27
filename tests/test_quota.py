@@ -9,6 +9,7 @@ from flids.attacks.quota import (
     CapacityShortfallError,
     QuotaTarget,
     overlay_capacity,
+    overlay_capacity_reference,
     select_quota_segments,
 )
 
@@ -86,6 +87,51 @@ def test_quota_shortfall_reported_when_not_failing():
                                    fail_on_capacity_shortfall=False)
     assert result["shortfall"]
     assert len(result["chosen"]) == 12  # all eligible selected
+
+
+def _mixed_frame() -> pd.DataFrame:
+    rows = []
+    bands = {0: 30.0, 1: 70.0, 2: 150.0, 3: 250.0, 4: 150.0, 5: 250.0}
+    for a in range(6):
+        icao = f"a{a:05d}"
+        for i in range(80):  # 800 s at 10 s, long enough for 600 s gradual and 300 s replay
+            row = {
+                "icao24": icao, "segment_id": 0, "time": i * 10,
+                "lat": 10.0 + a + i * 0.002, "lon": 20.0 + a + i * 0.002,
+                "velocity": bands[a], "heading": 90.0, "vertrate": 0.5,
+                "baroaltitude": 3000.0 + i, "geoaltitude": 3010.0 + i,
+                "onground": False, "contact_lag_seconds": 0.0, "contact_lag_missing": False,
+                **{f"{f}_missing": False for f in FEATURES},
+            }
+            rows.append(row)
+    df = pd.DataFrame(rows)
+    # Inject ineligibility and a geoaltitude glitch to exercise all screens.
+    df.loc[(df.icao24 == "a00000") & (df.time == 100), "onground"] = True
+    m = (df.icao24 == "a00001") & (df.time == 200)
+    df.loc[m, "velocity"] = np.nan
+    df.loc[m, "velocity_missing"] = True
+    df.loc[(df.icao24 == "a00002") & (df.time == 300), "geoaltitude"] += 5000.0  # glitch
+    return df
+
+
+def _split_of6(icao):
+    a = int(icao[1:])
+    return "train" if a < 4 else ("val" if a == 4 else "test")
+
+
+@pytest.mark.parametrize("ov", [
+    OverlaySpec("constant_deviation", "moderate", subtype="constant", duration_seconds=120, magnitude_m=2500.0, tau=0.1),
+    OverlaySpec("replay_full_field", "moderate", subtype="full", duration_seconds=120, tau=0.1,
+                replay_delay_s=300.0, replay_tolerance_s=5.0),
+    OverlaySpec("altitude_constant_deviation", "moderate", subtype="baro_plus_geo", altitude_variant="baro_plus_geo",
+                duration_seconds=120, shift_m=125.0, tau=0.1, geoaltitude_glitch_threshold_m=1000.0),
+    OverlaySpec("gradual_deviation", "moderate", subtype="gradual", duration_seconds=600, magnitude_m=2500.0, tau=0.1),
+])
+def test_overlay_capacity_matches_reference(ov):
+    df = _mixed_frame()
+    fast = overlay_capacity(df, ov, 42, _split_of6)
+    slow = overlay_capacity_reference(df, ov, 42, _split_of6)
+    assert fast == slow
 
 
 def test_overlay_capacity_counts_eligible_segments_and_aircraft():

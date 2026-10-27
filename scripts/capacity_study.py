@@ -60,6 +60,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", type=Path, default=Path("data/processed/opensky_clean_v1.parquet"))
     parser.add_argument("--splits", type=Path, default=Path("data/sequences_v2/split_aircraft.json"))
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--families", nargs="+", default=None,
+                        help="restrict the candidate grid to these families (prioritized run)")
     parser.add_argument("--out", type=Path, default=Path("results/capacity_study_v1/report.json"))
     return parser.parse_args()
 
@@ -76,8 +78,16 @@ def main() -> int:
     quota_mode = config.get("quota_mode", {}) or {}
     episode_targets = quota_mode.get("target_episodes_per_cell", {})
 
+    candidates = _candidates(config)
+    if args.families:
+        candidates = [c for c in candidates if c["family"] in set(args.families)]
+    # Eligibility (hence capacity) depends only on family, duration and altitude
+    # variant -- not tier or onset -- so compute once per key and reuse. This is
+    # exact, not an approximation.
+    capacity_cache: dict[tuple, dict] = {}
+
     results = []
-    for entry in _candidates(config):
+    for entry in candidates:
         try:
             overlay = overlay_from_config(
                 config, entry["family"], entry["tier"],
@@ -86,7 +96,12 @@ def main() -> int:
         except ValueError as error:
             results.append({**entry, "skipped": str(error)})
             continue
-        capacity = overlay_capacity(df, overlay, args.seed, split_map.split_of)
+        key = (entry["family"], entry["duration_seconds"], overlay.altitude_variant)
+        if key not in capacity_cache:
+            capacity_cache[key] = overlay_capacity(df, overlay, args.seed, split_map.split_of)
+            print(f"  capacity: {entry['family']} {int(entry['duration_seconds'])}s "
+                  f"variant={overlay.altitude_variant}", flush=True)
+        capacity = capacity_cache[key]
         per_split = {}
         for split in SPLIT_NAMES:
             cell = capacity[split]

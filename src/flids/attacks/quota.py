@@ -23,8 +23,11 @@ from typing import Callable, Mapping
 import numpy as np
 import pandas as pd
 
-from .assembler import OverlaySpec, segment_selection
+from .assembler import OverlaySpec, _required, segment_selection
+from .eligibility import pair_valid, row_eligible
+from .episode import REPLAY_FAMILIES
 from .keys import add_natural_keys
+from .placement import MAX_SPAN_FACTOR, MIN_SPAN_FACTOR, rows_for_duration
 from .splits import SPLIT_NAMES
 
 
@@ -76,7 +79,7 @@ def resolve_quota_target(config: Mapping, entry: Mapping) -> QuotaTarget:
     )
 
 
-def overlay_capacity(
+def overlay_capacity_reference(
     df: pd.DataFrame,
     overlay: OverlaySpec,
     global_seed: int,
@@ -84,10 +87,11 @@ def overlay_capacity(
     *,
     grid_degrees: float = 5.0,
 ) -> dict[str, dict[str, int]]:
-    """Per-split eligible segments, eligible starts, and unique aircraft.
+    """Per-split eligible segments/starts/aircraft via the per-segment loop.
 
-    Pure pass-1 capacity scan (no episode building), used by the read-only
-    capacity study to size how many overlays a merged dataset can host.
+    Authoritative but slow (~7 ms/segment). :func:`overlay_capacity` is the
+    vectorized equivalent; ``test_overlay_capacity_matches_reference`` pins them
+    to the same output across families.
     """
     keyed = add_natural_keys(df).sort_values(
         ["icao24", "segment_id", "time"], kind="mergesort"
@@ -109,6 +113,99 @@ def overlay_capacity(
         }
         for split, entry in stats.items()
     }
+
+
+_KEY_OFFSET = 4_000_000_000  # exceeds any epoch time so group keys never overlap
+
+
+def _replay_has_source(times, gid, row_ok, delay_s, tolerance_s) -> np.ndarray:
+    """Vectorized equivalent of ``replay_source_offsets(...) >= 0`` within each segment.
+
+    Uses a gid*OFFSET+time key so one global nearest-neighbour search stays
+    inside a segment (key distance == time distance when the match shares gid).
+    """
+    n = times.size
+    key = gid * _KEY_OFFSET + times
+    desired = key - int(delay_s)
+    right = np.clip(np.searchsorted(key, desired, side="left"), 0, n - 1)
+    left = np.clip(right - 1, 0, n - 1)
+    rd = np.abs(key[right] - desired)
+    ld = np.abs(key[left] - desired)
+    picked = np.where(rd < ld, right, left)
+    dist = np.minimum(rd, ld)
+    idx = np.arange(n)
+    return (dist <= tolerance_s) & (gid[picked] == gid) & (picked < idx) & row_ok[picked]
+
+
+def overlay_capacity(
+    df: pd.DataFrame,
+    overlay: OverlaySpec,
+    global_seed: int,
+    split_of: Callable[[str], str],
+    *,
+    grid_degrees: float = 5.0,
+) -> dict[str, dict[str, int]]:
+    """Per-split eligible segments, eligible starts, and unique aircraft (vectorized).
+
+    Reproduces :func:`overlay_capacity_reference` exactly (segment-aware prefix
+    sums for eligible-window starts, a within-segment replay link, the
+    geoaltitude glitch and span filters), without the per-segment Python loop.
+    """
+    keyed = df.sort_values(["icao24", "segment_id", "time"], kind="mergesort").reset_index(drop=True)
+    n = len(keyed)
+    empty = {s: {"eligible_segments": 0, "eligible_starts": 0, "unique_aircraft": 0} for s in SPLIT_NAMES}
+    if n == 0:
+        return empty
+    icao = keyed["icao24"].astype(str).to_numpy()
+    seg = keyed["segment_id"].to_numpy()
+    times = keyed["time"].to_numpy(np.int64)
+    new_group = np.ones(n, dtype=bool)
+    new_group[1:] = (icao[1:] != icao[:-1]) | (seg[1:] != seg[:-1])
+    gid = (np.cumsum(new_group) - 1).astype(np.int64)
+
+    row_ok = row_eligible(keyed, _required(overlay))
+    if overlay.attack_family in REPLAY_FAMILIES:
+        row_ok = row_ok & _replay_has_source(times, gid, row_ok, overlay.replay_delay_s, overlay.replay_tolerance_s)
+    if overlay.altitude_variant == "baro_plus_geo" and overlay.geoaltitude_glitch_threshold_m is not None:
+        geo = keyed["geoaltitude"].to_numpy(float)
+        same = np.zeros(n, dtype=bool); same[1:] = ~new_group[1:]
+        diff = np.zeros(n, dtype=float); diff[1:] = np.abs(np.diff(geo))
+        row_ok = row_ok & ~(same & (diff > overlay.geoaltitude_glitch_threshold_m))
+    pair_ok = pair_valid(keyed)
+
+    n_rows = rows_for_duration(overlay.duration_seconds)
+    kept = np.empty(0, dtype=np.int64)
+    if n_rows <= n:
+        row_prefix = np.concatenate(([0], np.cumsum(row_ok, dtype=np.int64)))
+        pair_prefix = np.concatenate(([0], np.cumsum(pair_ok, dtype=np.int64)))
+        i = np.arange(n - n_rows + 1)
+        within = gid[i] == gid[i + n_rows - 1]
+        rows_full = (row_prefix[i + n_rows] - row_prefix[i]) == n_rows
+        pairs_full = (pair_prefix[i + n_rows] - pair_prefix[i + 1]) == (n_rows - 1)
+        starts = i[within & rows_full & pairs_full]
+        if starts.size:
+            span = times[starts + n_rows - 1] - times[starts]
+            lower = MIN_SPAN_FACTOR * float(overlay.duration_seconds)
+            upper = MAX_SPAN_FACTOR * float(overlay.duration_seconds)
+            kept = starts[(span >= lower) & (span <= upper)]
+
+    seg_starts = np.flatnonzero(new_group)
+    icao_by_gid = icao[seg_starts]
+    split_map = {ic: split_of(ic) for ic in set(icao_by_gid.tolist())}
+    result = {s: {"eligible_segments": 0, "eligible_starts": 0, "unique_aircraft": 0} for s in SPLIT_NAMES}
+    if kept.size == 0:
+        return result
+    kept_gid = gid[kept]
+    kept_split = np.array([split_map[icao_by_gid[g]] for g in kept_gid], dtype=object)
+    for split in SPLIT_NAMES:
+        sel = kept_split == split
+        if not sel.any():
+            continue
+        gids = np.unique(kept_gid[sel])
+        result[split]["eligible_starts"] = int(sel.sum())
+        result[split]["eligible_segments"] = int(gids.size)
+        result[split]["unique_aircraft"] = int(len({icao_by_gid[g] for g in gids}))
+    return result
 
 
 def select_quota_segments(
