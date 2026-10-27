@@ -64,10 +64,12 @@ def test_gate1b_end_to_end_produces_thresholds_recall_and_capacity(tmp_path):
     assert manip["abrupt"]["100_200"]["16000"] == 1.0
     assert manip["abrupt"]["100_200"]["16000"] >= manip["real_ramp"]["100_200"]["16000"]
 
-    # Tier proposal exists for a fast band and is monotone non-decreasing.
-    tiers = report["tier_proposal_fast_bands_abrupt"]["100_200"]
+    # Tier proposal exists per onset for a fast band and is monotone non-decreasing.
+    tiers = report["tier_proposal_fast_bands_by_onset"]["100_200"]["abrupt"]
     vals = [tiers[k] for k in ("recall_10pct", "recall_30pct", "recall_60pct", "recall_90pct") if tiers[k] is not None]
     assert vals == sorted(vals)
+    assert "real_ramp" in report["tier_proposal_fast_bands_by_onset"]["100_200"]
+    assert report["train_aircraft_count"] >= 1
 
     # FPR near the 5% construction target for the train bands.
     for band, value in report["oracle_fpr_on_matched_controls"].items():

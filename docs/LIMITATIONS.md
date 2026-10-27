@@ -37,6 +37,19 @@ Updated 2026-10-26 (D-036/D-037). Living document; keep it current.
 - In the pilot, `episodes.speed_band` is `unknown` and
   `freeze_anchor_source_row_id` is null for every episode.
 
+## Calibration (Gate 1b, HDD)
+- The Gate 1b calibration (`results/gate1b_calibration_v2.json`, D-042) computes
+  the single-step boundary oracle (constant/Gaussian/freeze/partial-replay) and
+  per-split capacity, but **not** the integrated-residual oracle over k = 5, 10,
+  29 steps. Gradual deviation's per-step drift is sub-threshold, so its
+  detectability only accrues cumulatively; without the integrated oracle, when
+  within a gradual (or long) episode it becomes detectable is not yet calibrated
+  on the HDD source. This gap does not block generation (S7); it is scheduled as
+  a reference detector and for the post-hoc "interior-with-residual" stratum in
+  Phase 3 (S8/S9). Single-step boundary recall is near a step function at each
+  band's train p95 threshold, and the real ramp (first step 0.25× magnitude)
+  trips the boundary only near ~4× the threshold.
+
 ## Results
 - E-002 (shortcut audit) and E-003 (binary LSTM, mean test ROC-AUC 0.5742)
   are PILOT-DERIVED (D-036) and are not results. E-002's per-feature-summary

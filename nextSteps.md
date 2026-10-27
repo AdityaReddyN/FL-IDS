@@ -105,11 +105,12 @@ Print a tier proposal; do not change the YAML. **STOP.** Human + Claude review; 
 3. **Shortcut audit v2** (missingness, window position, absolute-summary, delta-only, on-ground/stale, contact-lag) with **aircraft-cluster bootstrap 95% CIs**. Write a PROPOSED decision defining the near-chance criterion **before running** and wait for approval. A failure blocks Phase 3 (no override without a recorded human decision).
 4. Track A training windows contain **zero attacked rows and no ambiguous windows**; per-step and per-window labels, strata (boundary/interior_only), binary + multiclass labels.
 5. New output dir; builder refuses dirty tree; manifest with hashes.
+6. **Integrated-residual oracle (k = 5, 10, 29)** (deferred from S6, D-042): add a post-hoc **interior-with-residual** stratum using the cumulative position-vs-`Σ v·dt` residual over k steps with train-only p95 per band and k, so gradual/long-episode detectability (and detection latency) are characterized where the single-step boundary oracle cannot.
 **STOP.** Gate 2 is a separate human review.
 
 ### Stage 9 — Phase 3 baselines (Track A first)
 - [ ] **S9** (register E-### first; ≥5 seeds; CIs by aircraft-cluster bootstrap; no test-set tuning)
-1. **Track A (headline): LSTM autoencoder** trained on normal windows only; loss masked by the missing masks; score = masked reconstruction error; threshold = validation **normal** score at 1% FPR (also 5%); report recall at fixed FPR per family/tier/stratum, ROC-AUC/PR-AUC, FPR on matched and full normal populations, detection latency from per-step labels. Add trivial references: oracle residual detector and Isolation Forest on delta-feature summaries.
+1. **Track A (headline): LSTM autoencoder** trained on normal windows only; loss masked by the missing masks; score = masked reconstruction error; threshold = validation **normal** score at 1% FPR (also 5%); report recall at fixed FPR per family/tier/stratum, ROC-AUC/PR-AUC, FPR on matched and full normal populations, detection latency from per-step labels. Add trivial references: oracle residual detector (single-step and the **k = 5/10/29 integrated-residual oracle** deferred from S6, D-042) and Isolation Forest on delta-feature summaries.
 2. Then 1D-CNN autoencoder (and optionally a small Transformer).
 3. **Track B (upper-bound reference):** LSTM/GRU/CNN classifiers on the identical splits and evaluation sets; LR/RF on engineered features.
 4. Model selection on validation only (normal validation loss for Track A). Never report at a fixed 0.5 threshold as an operating point.

@@ -37,13 +37,8 @@ from flids.attacks.calibration import (  # noqa: E402
 from flids.data.clean import FEATURES  # noqa: E402
 
 SPLIT_NAMES = ("train", "val", "test")
-# Finer grid through the fast-band transitions (100-200 recall climbs over
-# 1000-2000 m; 200_plus over 2000-4000 m), so tiers can be placed at the
-# ~10/30/60/90% boundary-recall targets.
-MAGNITUDES = (
-    500.0, 1000.0, 1200.0, 1400.0, 1600.0, 1800.0, 2000.0, 2200.0, 2500.0,
-    2800.0, 3200.0, 3600.0, 4000.0, 5000.0, 6000.0, 8000.0, 12000.0, 16000.0,
-)
+# Magnitude grid for the boundary-recall sweep (human-specified, S6).
+MAGNITUDES = (500.0, 750.0, 1000.0, 1500.0, 2000.0, 2500.0, 3500.0, 5500.0, 8000.0, 11000.0, 16000.0)
 GROSS_CONTROL_M = 16000.0
 ALT_TIER_SHIFTS = {"subtle": 60.0, "moderate": 125.0, "blatant": 300.0}
 MAX_CONTACT_LAG_SECONDS = 30.0
@@ -171,8 +166,8 @@ def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
         for onset, frac in (("abrupt", 1.0), ("real_ramp", RAMP_FIRST_STEP_FRACTION)):
             recalls = [manipulation_recall(north, east, en, ee, thr_vec, m, bearings, frac) for m in MAGNITUDES]
             manip[onset][name] = {str(int(m)): r for m, r in zip(MAGNITUDES, recalls)}
-            if onset == "abrupt" and name in FAST_BANDS:
-                tier_proposal[name] = propose_tiers_by_recall(MAGNITUDES, recalls)
+            if name in FAST_BANDS:
+                tier_proposal.setdefault(name, {})[onset] = propose_tiers_by_recall(MAGNITUDES, recalls)
         fpr[name] = float((residual_m(north, east, en, ee) >= thr).mean())
     gross = {}
     for name, _, _ in SPEED_BANDS:
@@ -245,12 +240,13 @@ def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
         "report_version": "gate1b_v2",
         "detector": "train_split_speed_band_p95_horizontal_residual",
         "ramp_first_step_fraction": RAMP_FIRST_STEP_FRACTION,
+        "magnitudes_m": list(MAGNITUDES),
         "sampled_pairs": int(h["resid"].size), "sampled_pairs_seen": int(horiz.seen),
         "speed_band_train_p95_threshold_m": thresholds,
         "horizontal_residual_quantiles_m": {name: _quantiles(h["resid"][h["band"] == name]) for name, _, _ in SPEED_BANDS},
         "manipulation_recall_by_magnitude": manip,
         "gross_control_abrupt_recall": gross,
-        "tier_proposal_fast_bands_abrupt": tier_proposal,
+        "tier_proposal_fast_bands_by_onset": tier_proposal,
         "freeze_recall": freeze,
         "partial_replay_recall": partial,
         "altitude_oracle": altitude,
@@ -275,6 +271,7 @@ def parse_args() -> argparse.Namespace:
 def run(clean_dir: Path, reservoir: int, seed: int, max_parts: int | None = None) -> dict:
     split = json.loads((clean_dir / "split_aircraft.json").read_text(encoding="utf-8"))
     split_of = {str(ic): name for name, ids in split.items() for ic in ids}
+    train_aircraft_count = len(split["train"])
     horiz = Reservoir(reservoir, seed)
     replay_res = Reservoir(reservoir, seed + 1)
     alt = Reservoir(reservoir, seed + 2)
@@ -291,7 +288,28 @@ def run(clean_dir: Path, reservoir: int, seed: int, max_parts: int | None = None
         process_part(df, horiz, replay_res, alt, capacity)
         print(f"processed {part.name}", flush=True)
     capacity.pop("_split_of", None)
-    return summarize(horiz, replay_res, alt, capacity, seed)
+    report = summarize(horiz, replay_res, alt, capacity, seed)
+    report["train_aircraft_count"] = int(train_aircraft_count)
+    return report
+
+
+def _print_recall_tables(report: dict) -> None:
+    mags = [str(int(m)) for m in report["magnitudes_m"]]
+    print(f"\nTrain aircraft: {report['train_aircraft_count']:,}  |  "
+          f"sampled pairs: {report['sampled_pairs']:,} of {report['sampled_pairs_seen']:,}")
+    print("Train p95 thresholds (m): " + ", ".join(
+        f"{b}={None if v is None else round(v,1)}" for b, v in report["speed_band_train_p95_threshold_m"].items()))
+    for onset in ("abrupt", "real_ramp"):
+        print(f"\n=== boundary recall — {onset} (first step "
+              f"{'1.0' if onset == 'abrupt' else report['ramp_first_step_fraction']}x magnitude) ===")
+        header = "band".ljust(9) + "".join(m.rjust(7) for m in mags)
+        print(header)
+        for band, _, _ in SPEED_BANDS:
+            row = report["manipulation_recall_by_magnitude"][onset].get(band)
+            if not row:
+                continue
+            cells = "".join((f"{row[m]*100:6.1f}" if m in row else "     -") + " " for m in mags)
+            print(band.ljust(9) + cells)
 
 
 def main() -> int:
@@ -303,9 +321,10 @@ def main() -> int:
     report = run(clean_dir, args.reservoir, args.seed, args.max_parts)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"thresholds": report["speed_band_train_p95_threshold_m"],
-                      "tier_proposal": report["tier_proposal_fast_bands_abrupt"],
-                      "fpr": report["oracle_fpr_on_matched_controls"]}, indent=2, sort_keys=True))
+    _print_recall_tables(report)
+    print("\n" + json.dumps({"thresholds": report["speed_band_train_p95_threshold_m"],
+                             "tier_proposal_by_onset": report["tier_proposal_fast_bands_by_onset"],
+                             "fpr": report["oracle_fpr_on_matched_controls"]}, indent=2, sort_keys=True))
     print(f"Wrote {out}")
     return 0
 
