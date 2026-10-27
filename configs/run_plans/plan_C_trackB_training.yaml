@@ -1,0 +1,51 @@
+# D-039 kind (C): mixed Track B training set, all families, sized (larger tau)
+# to yield enough attacked windows for the supervised upper-bound models. Train
+# aircraft provide the positives; the fixed global split keeps evaluation
+# aircraft disjoint. NOT APPROVED FOR GENERATION (r values pending, D-043).
+plan_version: 1
+name: mixed_track_b_training
+source:
+  clean_dir: data/processed/hdd_clean_v1
+band_p95_m:
+  "0_50": 476.7
+  "50_100": 829.3
+  "100_200": 1653.6
+  "200_plus": 2382.6
+overlays:
+  - family: constant_deviation
+    tier: moderate
+    tier_ratio_r: 1.0
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: random_gaussian_deviation
+    tier: moderate
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: gradual_deviation
+    tier: moderate
+    duration_seconds: 900
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: altitude_constant_deviation
+    tier: moderate
+    altitude_variant: baro_only
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: replay_partial_field
+    tier: moderate
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: replay_full_field
+    tier: moderate
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05
+  - family: freeze_fixed_value
+    tier: moderate
+    duration_seconds: 120
+    onset_mode: linear_mix
+    tau: 0.05

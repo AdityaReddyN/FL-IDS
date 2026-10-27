@@ -1,0 +1,26 @@
+# D-039 kind (A): per-cell evaluation overlay, ONE overlay per run, quota-filled.
+# Generate one such plan per (family, tier, duration, onset) cell; this file is
+# the constant_deviation / moderate-r / 120 s / abrupt cell as an example.
+#
+# NOT APPROVED FOR GENERATION: the ratio-tier r values are pending the human's
+# approval of the Gate 1b confirmatory r-grid run (D-043). band_p95_m below are
+# the measured HDD train-split residual p95 (gate1b_v2) and MUST match the
+# source/split fingerprint of the clean table used at generation.
+plan_version: 1
+name: per_cell_eval_constant_moderate_120s_abrupt
+source:
+  clean_dir: data/processed/hdd_clean_v1
+  note: band_p95_m is tied to this source/split; regenerate if the source changes.
+band_p95_m:
+  "0_50": 476.7
+  "50_100": 829.3
+  "100_200": 1653.6
+  "200_plus": 2382.6
+overlays:
+  - family: constant_deviation
+    tier: moderate
+    tier_ratio_r: 1.0            # placeholder (= p95); replace with approved moderate r
+    duration_seconds: 120
+    onset_mode: abrupt
+    quota_target: true           # use config quota_mode per-cell targets
+    episodes_per_segment: 1
