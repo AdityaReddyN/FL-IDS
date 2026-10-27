@@ -12,6 +12,7 @@ import pandas as pd
 from .eligibility import REQUIRED_FIELDS, eligible_starts, pair_valid, replay_source_offsets, row_eligible
 from .episode import EpisodeSpec, HORIZONTAL_FAMILIES, MIN_EFFECTIVE_ROWS, REPLAY_FAMILIES, build_episode
 from .kinematics import speed_band
+from .calibration import magnitude_for_ratio
 from .ramps import effective_row_count, ramp_multipliers
 from .keys import add_natural_keys
 from .placement import filter_starts_by_span, place_episodes, rows_for_duration
@@ -42,6 +43,11 @@ class OverlaySpec:
     overlay_key: str | None = None
     geoaltitude_glitch_threshold_m: float | None = None
     min_gap_seconds: float = 600.0
+    # Ratio-based tier (D-043): when set for constant_deviation, the per-episode
+    # horizontal magnitude is r * band_p95_m[speed_band] / step_fraction, looked
+    # up from the train-only speed-band residual p95 table carried in the plan.
+    tier_ratio_r: float | None = None
+    band_p95_m: dict | None = None
 
     def __post_init__(self):
         if not 0 <= self.tau <= 1: raise ValueError("tau must be in [0, 1]")
@@ -115,6 +121,24 @@ def _finite_median(values) -> float:
     array = np.asarray(values, dtype=float)
     finite = array[np.isfinite(array)]
     return float(np.median(finite)) if finite.size else float("nan")
+
+
+def _resolve_magnitude(overlay: "OverlaySpec", seg, start, count):
+    """Per-episode horizontal magnitude; ratio-tier lookup for constant_deviation.
+
+    In ratio mode the magnitude is ``r * p95[band] / step_fraction`` where the
+    band is the episode's speed band and ``step_fraction`` is 1.0 for abrupt or
+    ``1/(ramp_rows+1)`` for the ramp, so the first-step displacement (``r*p95``)
+    is the same across onset modes (D-043). A band with no train p95 raises.
+    """
+    if overlay.tier_ratio_r is None or overlay.attack_family != "constant_deviation":
+        return overlay.magnitude_m
+    band = _episode_speed_band(seg, start, count)
+    table = overlay.band_p95_m or {}
+    if band not in table:
+        raise ValueError(f"ratio-tier overlay {overlay.overlay_key!r}: no train p95 for speed band {band!r}")
+    onset = "abrupt" if overlay.onset_mode == "abrupt" else "linear_mix"
+    return magnitude_for_ratio(overlay.tier_ratio_r, float(table[band]), onset, overlay.ramp_rows)
 
 
 def _episode_speed_band(seg, start, count) -> str:
@@ -300,7 +324,8 @@ def _assemble_keyed(
                 prng=parameter_rng(global_seed,icao24,segment_id,k)
                 bearing=float(prng.uniform(0,360)) if overlay.attack_family in HORIZONTAL_FAMILIES else None
                 shift=(1 if prng.integers(2) else -1)*(overlay.shift_m or 0) if overlay.attack_family=="altitude_constant_deviation" else overlay.shift_m
-                spec=EpisodeSpec(overlay.attack_family,overlay.tier,overlay.subtype,overlay.altitude_variant,overlay.onset_mode,overlay.ramp_rows,overlay.magnitude_m,bearing,overlay.sigma_m,overlay.kappa,overlay.per_step_sigma_m,shift,overlay.replay_delay_s,overlay.replay_tolerance_s)
+                magnitude=_resolve_magnitude(overlay,seg,start,count)
+                spec=EpisodeSpec(overlay.attack_family,overlay.tier,overlay.subtype,overlay.altitude_variant,overlay.onset_mode,overlay.ramp_rows,magnitude,bearing,overlay.sigma_m,overlay.kappa,overlay.per_step_sigma_m,shift,overlay.replay_delay_s,overlay.replay_tolerance_s)
                 result=build_episode({f:seg[f].to_numpy(float) for f in FEATURE_FIELDS},times,row_ok,sources,start,count,spec,episode_rng(global_seed,icao24,segment_id,k))
                 eid=_episode_id(icao24,segment_id,k,overlay.overlay_key)
                 if not result.accepted:

@@ -23,11 +23,15 @@ def overlay_from_config(
     altitude_variant: str = "baro_only",
     episodes_per_segment: int = 1,
     onset_mode: str = "linear_mix",
+    tier_ratio_r: float | None = None,
+    band_p95_m: dict | None = None,
 ) -> OverlaySpec:
     """Build one overlay from approved config values; does not read YAML.
 
     This deliberately constructs one overlay per invocation. It does not
-    implement the config's quota or density-scaled sensitivity modes.
+    implement the config's quota or density-scaled sensitivity modes. When
+    ``tier_ratio_r`` is given (constant_deviation only), the fixed-meter
+    magnitude is replaced by the ratio-tier lookup (D-043).
     """
     if attack_family not in _FAMILIES:
         raise ValueError(f"unsupported attack family: {attack_family}")
@@ -50,6 +54,8 @@ def overlay_from_config(
     kappa = float(gaussian["eq12_noise_kappa_by_tier"].get(tier, 0.0))
     if attack_family in {"constant_deviation", "gradual_deviation"}:
         magnitude = float(tiers["horizontal_meters"][tier])
+    if attack_family == "constant_deviation" and tier_ratio_r is not None:
+        magnitude = None  # per-episode ratio-tier lookup in the assembler
     elif attack_family == "random_gaussian_deviation":
         sigma = float(gaussian["deviation_sigma_meters_by_tier"][tier])
     elif attack_family == "altitude_constant_deviation":
@@ -82,6 +88,8 @@ def overlay_from_config(
         tau=requested_tau,
         onset_mode=onset_mode,
         episodes_per_segment=episodes_per_segment,
+        tier_ratio_r=tier_ratio_r if attack_family == "constant_deviation" else None,
+        band_p95_m=dict(band_p95_m) if (band_p95_m is not None and attack_family == "constant_deviation" and tier_ratio_r is not None) else None,
         dataset_mode=config["region"]["primary_dataset_mode"],
         geoaltitude_glitch_threshold_m=float(glitch) if attack_family == "altitude_constant_deviation" and altitude_variant == "baro_plus_geo" and glitch is not None else None,
         min_gap_seconds=float(episodes["minimum_inter_episode_gap_seconds"]),
@@ -102,7 +110,7 @@ def plan_mode(plan: dict) -> str:
     return "quota" if has_quota else "bernoulli"
 
 
-def _overlay_from_entry(config: dict, entry: dict) -> OverlaySpec:
+def _overlay_from_entry(config: dict, entry: dict, band_p95_m: dict | None = None) -> OverlaySpec:
     # Quota overlays carry tau=0.0: selection is overridden by the ranked quota
     # chosen set, so the Bernoulli probability is unused (D-038).
     tau = float(entry["tau"]) if entry.get("tau") is not None else 0.0
@@ -115,6 +123,8 @@ def _overlay_from_entry(config: dict, entry: dict) -> OverlaySpec:
         altitude_variant=entry.get("altitude_variant", "baro_only"),
         episodes_per_segment=int(entry.get("episodes_per_segment", 1)),
         onset_mode=entry.get("onset_mode", "linear_mix"),
+        tier_ratio_r=entry.get("tier_ratio_r"),
+        band_p95_m=band_p95_m,
     )
 
 
@@ -123,9 +133,11 @@ def overlays_from_plan(config: dict, plan: dict) -> tuple[OverlaySpec, ...]:
 
     Works for both selection modes. For a quota plan the overlays carry
     ``tau=0.0`` (unused); the per-cell targets come from
-    :func:`quota_targets_from_plan`.
+    :func:`quota_targets_from_plan`. Ratio-tier overlays (constant_deviation with
+    ``tier_ratio_r``) read the plan's ``band_p95_m`` table (D-043).
     """
-    return tuple(_overlay_from_entry(config, entry) for entry in plan["overlays"])
+    band_p95_m = plan.get("band_p95_m")
+    return tuple(_overlay_from_entry(config, entry, band_p95_m) for entry in plan["overlays"])
 
 
 def quota_targets_from_plan(config: dict, plan: dict) -> dict[str, QuotaTarget] | None:

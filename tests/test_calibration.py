@@ -10,9 +10,12 @@ from flids.attacks.calibration import (
     freeze_recall,
     horizontal_components,
     integrated_residual_m,
+    magnitude_for_ratio,
     manipulation_recall,
+    propose_r_tiers,
     propose_tiers_by_recall,
     residual_m,
+    step_fraction,
 )
 from flids.attacks.calibration import SPEED_BANDS, VERTICAL_BANDS
 
@@ -79,6 +82,30 @@ def test_propose_tiers_picks_smallest_qualifying_magnitude():
     assert tiers["recall_30pct"] == 2000.0
     assert tiers["recall_60pct"] == 4000.0
     assert tiers["recall_90pct"] == 8000.0
+
+
+def test_step_fraction_and_magnitude_for_ratio():
+    assert step_fraction("abrupt") == 1.0
+    assert step_fraction("linear_mix", 3) == 0.25
+    # M = r*p95/step_fraction; first-step displacement = step_fraction*M = r*p95
+    # is equal across onset modes for the same r.
+    r, p95 = 1.2, 1600.0
+    m_abrupt = magnitude_for_ratio(r, p95, "abrupt")
+    m_ramp = magnitude_for_ratio(r, p95, "linear_mix", 3)
+    assert m_abrupt == r * p95
+    assert m_ramp == r * p95 / 0.25
+    assert step_fraction("abrupt") * m_abrupt == step_fraction("linear_mix", 3) * m_ramp == r * p95
+
+
+def test_propose_r_tiers_picks_targets():
+    ratios = [0.5, 0.8, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.5, 2.0]
+    recalls = [0.04, 0.09, 0.2, 0.4, 0.55, 0.7, 0.85, 0.93, 0.995, 1.0]
+    tiers = propose_r_tiers(ratios, recalls)
+    assert tiers["subtle"] == 0.9      # first r with recall >= 0.10 (0.8 is 0.09)
+    assert tiers["moderate"] == 1.0    # >= 0.50
+    assert tiers["blatant"] == 1.2     # >= 0.90 (1.1 is 0.85)
+    assert tiers["gross"] == 1.5       # >= 0.99
+    assert tiers["floor"] == 0.5
 
 
 def test_reservoir_is_bounded_uniform_and_seed_deterministic():

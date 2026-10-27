@@ -31,6 +31,34 @@ VERTICAL_BANDS: tuple[tuple[str, float, float], ...] = (
 FAST_BANDS: tuple[str, ...] = ("100_200", "200_plus")
 RECALL_TARGETS: tuple[float, ...] = (0.10, 0.30, 0.60, 0.90)
 
+# Ratio grid for the r-based tier calibration: r = first-step displacement /
+# train-only band p95. A magnitude is M = r * p95_band / step_fraction, so the
+# first-step displacement (step_fraction * M = r * p95) is onset-independent.
+R_GRID: tuple[float, ...] = (0.5, 0.8, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.5, 2.0, 3.0, 5.0)
+TIER_RECALL_TARGETS: dict[str, float] = {"subtle": 0.10, "moderate": 0.50, "blatant": 0.90, "gross": 0.99}
+
+
+def step_fraction(onset_mode: str, ramp_rows: int = 3) -> float:
+    """First-step multiplier: 1.0 for abrupt, 1/(ramp_rows+1) for the real ramp."""
+    return 1.0 if onset_mode == "abrupt" else 1.0 / (ramp_rows + 1)
+
+
+def magnitude_for_ratio(r: float, p95_band: float, onset_mode: str, ramp_rows: int = 3) -> float:
+    """M = r * p95_band / step_fraction, so first-step displacement = r * p95_band."""
+    return float(r) * float(p95_band) / step_fraction(onset_mode, ramp_rows)
+
+
+def propose_r_tiers(ratios, recalls) -> dict:
+    """Smallest r meeting each tier's boundary-recall target (subtle/moderate/blatant/gross)."""
+    rr = np.asarray(ratios, float); rec = np.asarray(recalls, float)
+    order = np.argsort(rr); rr, rec = rr[order], rec[order]
+    out = {}
+    for tier, target in TIER_RECALL_TARGETS.items():
+        hit = np.flatnonzero(rec >= target)
+        out[tier] = float(rr[hit[0]]) if hit.size else None
+    out["floor"] = 0.5
+    return out
+
 
 def band_label(values, bands: tuple[tuple[str, float, float], ...]) -> np.ndarray:
     values = np.asarray(values, dtype=float)

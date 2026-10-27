@@ -49,6 +49,14 @@ Updated 2026-10-26 (D-036/D-037). Living document; keep it current.
   Phase 3 (S8/S9). Single-step boundary recall is near a step function at each
   band's train p95 threshold, and the real ramp (first step 0.25× magnitude)
   trips the boundary only near ~4× the threshold.
+- Horizontal constant-deviation tiers are defined by a ratio r to the train-only
+  band p95 (D-043), not fixed meters; the r values are approved from the
+  confirmatory r-grid run before generation. Gradual deviation keeps fixed
+  meters: its per-step drift is sub-threshold, so a single-step oracle cannot see
+  it and its detectability must be read from the (deferred) integrated-residual
+  oracle. The oracle recalls here are per-step (boundary) quantities; per-window
+  detectability (how many windows in an episode are flagged, and interior-only
+  windows) is a separate post-hoc stratum computed at Phase 2/3, not by Gate 1b.
 
 ## Results
 - E-002 (shortcut audit) and E-003 (binary LSTM, mean test ROC-AUC 0.5742)

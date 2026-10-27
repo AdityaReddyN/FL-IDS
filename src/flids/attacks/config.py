@@ -145,6 +145,19 @@ def validate_run_plan(plan: Mapping[str, Any]) -> None:
         has_quota = entry.get("quota_target") is not None
         if has_tau == has_quota:
             raise PlanError(f"{where} must set exactly one of 'tau' or 'quota_target'")
+        if entry.get("tier_ratio_r") is not None:
+            if family != "constant_deviation":
+                raise PlanError(f"{where}.tier_ratio_r is only defined for constant_deviation")
+            if not (isinstance(entry["tier_ratio_r"], (int, float)) and entry["tier_ratio_r"] > 0):
+                raise PlanError(f"{where}.tier_ratio_r must be a positive number")
+    # A ratio-tier plan must carry the train-only speed-band p95 table.
+    if any(e.get("tier_ratio_r") is not None for e in overlays):
+        band_p95 = plan.get("band_p95_m")
+        if not isinstance(band_p95, Mapping) or not band_p95:
+            raise PlanError("a plan using tier_ratio_r requires a top-level 'band_p95_m' mapping")
+        missing_bands = [b for b in ("0_50", "50_100", "100_200", "200_plus") if b not in band_p95]
+        if missing_bands:
+            raise PlanError("band_p95_m is missing speed band(s): " + ", ".join(missing_bands))
 
 
 def load_run_plan(path: str | Path) -> dict[str, Any]:

@@ -46,6 +46,25 @@ def test_validate_run_plan_rejects_bad_plans() -> None:
         validate_run_plan({"plan_version": 1, "overlays": [{"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120, "tau": 0.005, "quota_target": {"episodes": 1}}]})
 
 
+def test_validate_run_plan_ratio_tier_rules() -> None:
+    p95 = {"0_50": 477.0, "50_100": 829.0, "100_200": 1654.0, "200_plus": 2383.0}
+    ok = {
+        "plan_version": 1, "band_p95_m": p95,
+        "overlays": [{"family": "constant_deviation", "tier": "moderate",
+                      "duration_seconds": 120, "tau": 0.01, "tier_ratio_r": 1.2}],
+    }
+    validate_run_plan(ok)
+    with pytest.raises(PlanError, match="band_p95_m"):
+        validate_run_plan({**ok, "band_p95_m": None})
+    bad_family = {
+        "plan_version": 1, "band_p95_m": p95,
+        "overlays": [{"family": "freeze_fixed_value", "tier": "moderate",
+                      "duration_seconds": 120, "tau": 0.01, "tier_ratio_r": 1.2}],
+    }
+    with pytest.raises(PlanError, match="only defined for constant_deviation"):
+        validate_run_plan(bad_family)
+
+
 def test_load_run_plan_round_trips(tmp_path) -> None:
     path = tmp_path / "plan.yaml"
     path.write_text(yaml.safe_dump(good_plan()), encoding="utf-8")

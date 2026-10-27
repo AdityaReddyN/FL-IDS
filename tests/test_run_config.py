@@ -99,6 +99,22 @@ def test_quota_targets_from_plan_falls_back_to_config_defaults():
     assert targets[key].unique_aircraft == {"train": 200, "val": 100, "test": 100}
 
 
+def test_ratio_tier_plan_builds_constant_overlay_with_table():
+    plan = {
+        "plan_version": 1,
+        "band_p95_m": {"0_50": 477.0, "50_100": 829.0, "100_200": 1654.0, "200_plus": 2383.0},
+        "overlays": [
+            {"family": "constant_deviation", "tier": "moderate", "duration_seconds": 120,
+             "tau": 0.01, "tier_ratio_r": 1.2},
+        ],
+    }
+    overlays = overlays_from_plan(config(), plan)
+    ov = overlays[0]
+    assert ov.tier_ratio_r == 1.2
+    assert ov.magnitude_m is None  # fixed meters replaced by ratio-tier lookup
+    assert ov.band_p95_m["100_200"] == 1654.0
+
+
 def test_plan_mode_rejects_mixed_selection():
     plan = {
         "plan_version": 1,

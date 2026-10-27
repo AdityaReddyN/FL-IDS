@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from flids.attacks.assembler import OverlaySpec, assemble_overlay, assemble_overlays, iter_assembled_chunks, strict_json
+from flids.attacks.assembler import OverlaySpec, assemble_overlay, assemble_overlays, iter_assembled_chunks, strict_json, _resolve_magnitude
 from flids.attacks.schemas import TABLE_NAMES, validate_table
 from flids.attacks.windows import label_windows
 
@@ -110,6 +110,37 @@ def test_synthetic_assembler_matches_exact_id_and_selection_golden() -> None:
         "overlay_selections": "512237bed2cae411f7f7a778eb0f3c7c5795ab8fe6507663e6a031a330a7c1e0",
     }
     assert actual == expected
+
+
+def _velocity_seg(velocity: float) -> pd.DataFrame:
+    return pd.DataFrame({"velocity": [velocity] * 12})
+
+
+def test_ratio_tier_magnitude_per_band_and_onset() -> None:
+    p95 = {"0_50": 477.0, "50_100": 829.0, "100_200": 1654.0, "200_plus": 2383.0}
+    abrupt = OverlaySpec(attack_family="constant_deviation", tier="moderate", subtype="constant",
+                         duration_seconds=120.0, onset_mode="abrupt", tau=0.1,
+                         tier_ratio_r=1.2, band_p95_m=p95)
+    ramp = OverlaySpec(attack_family="constant_deviation", tier="moderate", subtype="constant",
+                       duration_seconds=120.0, onset_mode="linear_mix", ramp_rows=3, tau=0.1,
+                       tier_ratio_r=1.2, band_p95_m=p95)
+    seg = _velocity_seg(150.0)  # 100_200 band
+    m_abrupt = _resolve_magnitude(abrupt, seg, 0, 12)
+    m_ramp = _resolve_magnitude(ramp, seg, 0, 12)
+    assert m_abrupt == 1.2 * 1654.0            # r * p95 / 1.0
+    assert m_ramp == 1.2 * 1654.0 / 0.25       # r * p95 / step_fraction
+    # Same r => equal first-step displacement across onset modes.
+    assert 1.0 * m_abrupt == 0.25 * m_ramp == 1.2 * 1654.0
+    # The episode's speed band drives the lookup.
+    assert _resolve_magnitude(abrupt, _velocity_seg(250.0), 0, 12) == 1.2 * 2383.0
+
+
+def test_ratio_tier_missing_band_raises() -> None:
+    abrupt = OverlaySpec(attack_family="constant_deviation", tier="moderate", subtype="constant",
+                         duration_seconds=120.0, onset_mode="abrupt", tau=0.1,
+                         tier_ratio_r=1.0, band_p95_m={"0_50": 477.0})  # 100_200 absent
+    with pytest.raises(ValueError, match="no train p95 for speed band"):
+        _resolve_magnitude(abrupt, _velocity_seg(150.0), 0, 12)
 
 
 def test_overlay_rejects_too_few_effective_rows() -> None:

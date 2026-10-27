@@ -30,9 +30,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from flids.attacks.calibration import (  # noqa: E402
-    FAST_BANDS, RAMP_FIRST_STEP_FRACTION, SPEED_BANDS, VERTICAL_BANDS, Reservoir,
+    FAST_BANDS, R_GRID, RAMP_FIRST_STEP_FRACTION, SPEED_BANDS, VERTICAL_BANDS, Reservoir,
     altitude_residual_m, band_label, freeze_recall, horizontal_components,
-    manipulation_recall, propose_tiers_by_recall, residual_m,
+    magnitude_for_ratio, manipulation_recall, propose_r_tiers, propose_tiers_by_recall,
+    residual_m, step_fraction,
 )
 from flids.data.clean import FEATURES  # noqa: E402
 
@@ -40,7 +41,6 @@ SPLIT_NAMES = ("train", "val", "test")
 # Magnitude grid for the boundary-recall sweep (human-specified, S6).
 MAGNITUDES = (500.0, 750.0, 1000.0, 1500.0, 2000.0, 2500.0, 3500.0, 5500.0, 8000.0, 11000.0, 16000.0)
 GROSS_CONTROL_M = 16000.0
-ALT_TIER_SHIFTS = {"subtle": 60.0, "moderate": 125.0, "blatant": 300.0}
 MAX_CONTACT_LAG_SECONDS = 30.0
 REPLAY_DELAY_S = 300.0
 REPLAY_TOLERANCE_S = 5.0
@@ -179,6 +179,31 @@ def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
         gross[name] = manipulation_recall(h["north"][sel], h["east"][sel], h["en"][sel], h["ee"][sel],
                                           np.full(int(sel.sum()), thr), GROSS_CONTROL_M, bearings, 1.0)
 
+    # --- r-based recall: M = r*p95/step_fraction, so the first-step displacement
+    # (r*p95) is onset-independent and the speed bands should collapse onto one r curve.
+    recall_by_r = {"abrupt": {}, "real_ramp": {}}
+    for name, _, _ in SPEED_BANDS:
+        sel = h["band"] == name
+        thr = thresholds[name]
+        if thr is None or not sel.any():
+            continue
+        north, east, en, ee = h["north"][sel], h["east"][sel], h["en"][sel], h["ee"][sel]
+        bearings = rng.uniform(0, 2 * np.pi, size=north.size)
+        thr_vec = np.full(north.size, thr)
+        for onset in ("abrupt", "real_ramp"):
+            frac = step_fraction("abrupt" if onset == "abrupt" else "linear_mix")
+            rec = [manipulation_recall(north, east, en, ee, thr_vec,
+                                       magnitude_for_ratio(r, thr, "abrupt" if onset == "abrupt" else "linear_mix"),
+                                       bearings, frac) for r in R_GRID]
+            recall_by_r[onset][name] = {str(r): v for r, v in zip(R_GRID, rec)}
+    # Pooled abrupt recall-by-r over the fast bands drives the proposed r tiers.
+    pooled = []
+    for r in R_GRID:
+        vals = [recall_by_r["abrupt"][b][str(r)] for b in FAST_BANDS if b in recall_by_r["abrupt"]]
+        pooled.append(float(np.mean(vals)) if vals else None)
+    proposed_r = propose_r_tiers([r for r, v in zip(R_GRID, pooled) if v is not None],
+                                 [v for v in pooled if v is not None])
+
     # Freeze and integrated-residual oracle (single-step proxy per band).
     freeze = {}
     for name, _, _ in SPEED_BANDS:
@@ -219,9 +244,13 @@ def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
             for vb, _, _ in VERTICAL_BANDS:
                 vals = a[channel][atrain & (a["vband"] == vb)]
                 thr = float(np.quantile(vals, 0.95)) if vals.size else None
-                tiers = {t: (float((s >= thr)) if thr is not None else None) for t, s in ALT_TIER_SHIFTS.items()}
+                # r-based altitude recall: a constant shift adds r*thr to the
+                # residual at the boundary, so recall = P(resid >= (1-r)*thr).
+                sample = a[channel][a["vband"] == vb]
+                recall_r = ({str(r): float((sample + r * thr >= thr).mean()) for r in R_GRID}
+                            if thr is not None and sample.size else {})
                 altitude[channel][vb] = {"train_p95_residual_m": thr, "n": int(vals.size),
-                                         "tier_shift_detected": tiers,
+                                         "recall_by_r": recall_r,
                                          "separate_or_exclude": vb == "15_plus"}
 
     # Capacity table (convert aircraft sets to counts).
@@ -245,6 +274,9 @@ def summarize(horiz, replay_res, alt, capacity, seed) -> dict:
         "speed_band_train_p95_threshold_m": thresholds,
         "horizontal_residual_quantiles_m": {name: _quantiles(h["resid"][h["band"] == name]) for name, _, _ in SPEED_BANDS},
         "manipulation_recall_by_magnitude": manip,
+        "recall_by_ratio_r": recall_by_r,
+        "r_grid": list(R_GRID),
+        "proposed_r_tiers_pooled_abrupt": proposed_r,
         "gross_control_abrupt_recall": gross,
         "tier_proposal_fast_bands_by_onset": tier_proposal,
         "freeze_recall": freeze,
@@ -310,6 +342,18 @@ def _print_recall_tables(report: dict) -> None:
                 continue
             cells = "".join((f"{row[m]*100:6.1f}" if m in row else "     -") + " " for m in mags)
             print(band.ljust(9) + cells)
+    # r-based recall (should collapse across bands and across onsets).
+    rgrid = [str(r) for r in report["r_grid"]]
+    for onset in ("abrupt", "real_ramp"):
+        print(f"\n=== boundary recall by r=first-step/p95 — {onset} ===")
+        print("band".ljust(9) + "".join(r.rjust(7) for r in rgrid))
+        for band, _, _ in SPEED_BANDS:
+            row = report["recall_by_ratio_r"][onset].get(band)
+            if not row:
+                continue
+            cells = "".join((f"{row[r]*100:6.1f}" if r in row else "     -") + " " for r in rgrid)
+            print(band.ljust(9) + cells)
+    print("\nProposed r tiers (pooled fast-band abrupt): " + json.dumps(report["proposed_r_tiers_pooled_abrupt"]))
 
 
 def main() -> int:
