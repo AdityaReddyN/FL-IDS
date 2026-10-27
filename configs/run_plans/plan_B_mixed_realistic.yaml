@@ -1,6 +1,6 @@
 # D-039 kind (B): mixed realistic-prevalence set, all families together,
 # Bernoulli mode at a small tau, one overlay per segment (lexicographic merge).
-# NOT APPROVED FOR GENERATION (r values pending, D-043). band_p95_m = HDD train
+# Ratio-tier r values approved (D-044). Generation still requires E-### registration + content validation (S7). band_p95_m = HDD train
 # p95 (gate1b_v2), tied to the source/split fingerprint.
 plan_version: 1
 name: mixed_realistic_prevalence
@@ -14,7 +14,7 @@ band_p95_m:
 overlays:
   - family: constant_deviation
     tier: moderate
-    tier_ratio_r: 1.0
+    tier_ratio_r: 1.0            # moderate (D-044)
     duration_seconds: 120
     onset_mode: linear_mix
     tau: 0.005

@@ -1,7 +1,7 @@
 # D-039 kind (C): mixed Track B training set, all families, sized (larger tau)
 # to yield enough attacked windows for the supervised upper-bound models. Train
 # aircraft provide the positives; the fixed global split keeps evaluation
-# aircraft disjoint. NOT APPROVED FOR GENERATION (r values pending, D-043).
+# aircraft disjoint. Ratio-tier r values approved (D-044). Generation still requires E-### registration + content validation (S7).
 plan_version: 1
 name: mixed_track_b_training
 source:
@@ -14,7 +14,7 @@ band_p95_m:
 overlays:
   - family: constant_deviation
     tier: moderate
-    tier_ratio_r: 1.0
+    tier_ratio_r: 1.0            # moderate (D-044)
     duration_seconds: 120
     onset_mode: linear_mix
     tau: 0.05

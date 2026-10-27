@@ -107,6 +107,14 @@ attacks:
 
 tiers:
   horizontal_meters: {subtle: 500.0, moderate: 2500.0, blatant: 5500.0, gross_positive_control: 11000.0}
+  # HDD ratio tiers (D-044): r = first-step displacement / train-only band p95.
+  # Per-episode magnitude = r * p95[speed_band] / step_fraction, so the same r
+  # means the same boundary detectability across speed bands and onset modes.
+  # Pooled fast-band abrupt boundary recall: ~6 / ~11 / ~53 / ~93 / ~99.5%.
+  # Supersedes horizontal_meters for the HDD source (fixed meters kept for the
+  # 2-hour history only). band p95 (m): 0_50 476.7, 50_100 829.3, 100_200 1653.6,
+  # 200_plus 2382.6 (gate1b_v2, HDD train split).
+  horizontal_ratio_r_by_tier: {floor: 0.5, subtle: 0.9, moderate: 1.0, blatant: 1.1, gross_positive_control: 2.0}
   altitude_residual_calibration_meters:
     shared_shift_both_variants: {subtle: 35.0, moderate: 125.0, blatant: 250.0, gross_positive_control: 500.0}
     calibration_source_band: vertical_rate_0_to_5_mps
