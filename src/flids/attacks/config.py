@@ -44,7 +44,7 @@ PLAN_FAMILIES: tuple[str, ...] = (
     "freeze_fixed_value",
 )
 PLAN_TIERS: tuple[str, ...] = (
-    "subtle", "moderate", "blatant", "gross_positive_control",
+    "floor", "subtle", "moderate", "blatant", "gross_positive_control",
 )
 PLAN_ONSET_MODES: tuple[str, ...] = ("linear_mix", "abrupt")
 PLAN_ALTITUDE_VARIANTS: tuple[str, ...] = ("baro_only", "baro_plus_geo")
@@ -150,6 +150,20 @@ def validate_run_plan(plan: Mapping[str, Any]) -> None:
                 raise PlanError(f"{where}.tier_ratio_r is only defined for constant_deviation")
             if not (isinstance(entry["tier_ratio_r"], (int, float)) and entry["tier_ratio_r"] > 0):
                 raise PlanError(f"{where}.tier_ratio_r must be a positive number")
+    # Same-family cells in one plan need a unique explicit overlay_key, since
+    # the derived key (family|tier|subtype|variant) ignores onset/duration/r.
+    from collections import Counter
+    family_counts = Counter(e["family"] for e in overlays)
+    explicit_keys = []
+    for index, entry in enumerate(overlays):
+        key = entry.get("overlay_key")
+        if family_counts[entry["family"]] > 1 and not key:
+            raise PlanError(f"overlays[{index}]: family {entry['family']!r} appears more than once; "
+                            "each such overlay needs a unique 'overlay_key'")
+        if key is not None:
+            explicit_keys.append(key)
+    if len(explicit_keys) != len(set(explicit_keys)):
+        raise PlanError("duplicate overlay_key in plan")
     # A ratio-tier plan must carry the train-only speed-band p95 table.
     if any(e.get("tier_ratio_r") is not None for e in overlays):
         band_p95 = plan.get("band_p95_m")

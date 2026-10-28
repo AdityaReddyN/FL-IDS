@@ -94,7 +94,7 @@ files, never estimated.
 - **Hypothesis / purpose:** Generate the per-cell evaluation dataset (D-039 kind A) as ONE joint quota run (one overlay per segment, resolved in plan order) on the aircraft-hash working subset of `hdd_clean_v1`, for per-family/tier/duration recall with boundary vs interior-only strata.
 - **Data version:** `data/processed/hdd_clean_v1_subset_<frac>pct.parquet` (subset content_fingerprint recorded at run time); split `data/processed/hdd_clean_v1/split_aircraft.json`.
 - **Method / model:** `scripts/run_stage7.py` → `generate_attack_v3.py --plan plan_A_per_cell_eval.yaml --conflict-order plan --input <subset>`; ratio tiers (D-044); quota mode.
-- **Run plan:** `configs/run_plans/plan_A_per_cell_eval.yaml` (sha256 63e1d0f3439d10e7…)
+- **Run plan:** `configs/run_plans/plan_A_per_cell_eval.yaml` (sha256 e6bc2ff71db88888…); 25-overlay joint quota run, plan-order conflict resolution; approval `configs/run_plans/approved_cells_A.json` (D-046)
 - **Seeds:** 42
 - **Git commit:** (filled at generation; writer records it + git_dirty=false)
 - **Key results:** (from manifest after the human run)

@@ -78,6 +78,7 @@ def write_overlay_tables(
     resolved_plan: Sequence[Mapping] | None = None,
     quota_targets: Mapping | None = None,
     conflict_priority: Sequence[str] | None = None,
+    plan_source: Mapping | None = None,
     max_segments_per_chunk: int = 64,
     repo_root: str | Path | None = None,
     progress_callback: Callable[[Mapping], None] | None = None,
@@ -148,6 +149,10 @@ def write_overlay_tables(
     }  # overlay_key -> split -> {eligible, selected, chosen}
     # windows by label x stratum x family x split (family "none" for normals).
     window_lsfs: dict[tuple[str, str, str, str], int] = {}
+    # Accepted episodes per (overlay_key, split) after the build (D-046): quota
+    # targets count ACCEPTED episodes and accepted unique aircraft, not just
+    # selected segments.
+    accepted_cell: dict[tuple[str, str], dict] = {}
     chunk_seconds: list[float] = []
     validator_results = {name: "passed" for name in TABLE_NAMES}
     plausibility_episodes = []
@@ -207,6 +212,12 @@ def write_overlay_tables(
                     window_overlay = chunk.windows.episode_id.map(episode_overlay)
                     for overlay_key, count in window_overlay.dropna().value_counts().items():
                         overlay_windows[str(overlay_key)] += int(count)
+            # Accepted episodes per (overlay_key, split) + accepted aircraft.
+            if not chunk.episodes.empty:
+                for key, grp in chunk.episodes.groupby(["overlay_key", "split"], sort=False):
+                    cell = accepted_cell.setdefault((str(key[0]), str(key[1])), {"episodes": 0, "aircraft": set()})
+                    cell["episodes"] += int(len(grp))
+                    cell["aircraft"].update(grp["icao24"].astype(str).unique().tolist())
             # Windows by label x stratum x family x split.
             if not chunk.windows.empty:
                 grouped = chunk.windows.assign(
@@ -298,6 +309,36 @@ def write_overlay_tables(
         dirty=False,
         git_commit=None,
     )
+    # Accepted-count report + shortfall vs quota targets (D-046): quotas count
+    # ACCEPTED episodes and accepted unique aircraft after the build.
+    accepted_shortfall = []
+    if quota_targets is not None:
+        accepted_rows = []
+        for item in overlays:
+            tgt = quota_targets.get(item.overlay_key)
+            for split in ("train", "val", "test"):
+                cell = accepted_cell.get((str(item.overlay_key), split), {"episodes": 0, "aircraft": set()})
+                episodes = int(cell["episodes"]); aircraft = len(cell["aircraft"])
+                want_ep = int(tgt.episodes.get(split, 0)) if tgt else 0
+                want_ac = int(tgt.unique_aircraft.get(split, 0)) if tgt else 0
+                descriptive_only = bool(split == "test" and (aircraft < 100 or episodes < 150))
+                row = {"overlay_key": item.overlay_key, "split": split,
+                       "accepted_episodes": episodes, "accepted_unique_aircraft": aircraft,
+                       "target_episodes": want_ep, "target_unique_aircraft": want_ac,
+                       "episodes_shortfall": episodes < want_ep, "aircraft_shortfall": aircraft < want_ac,
+                       "descriptive_only": descriptive_only}
+                accepted_rows.append(row)
+                if row["episodes_shortfall"] or row["aircraft_shortfall"]:
+                    accepted_shortfall.append(row)
+        if quota_report is not None:
+            quota_report = {**quota_report, "accepted_by_cell": accepted_rows, "accepted_shortfall": accepted_shortfall}
+        fail_on_shortfall = bool((config.get("quota_mode") or {}).get("fail_on_capacity_shortfall", True))
+        if accepted_shortfall and fail_on_shortfall:
+            for parquet_writer in writers.values():
+                parquet_writer.close()
+            raise WriterError(f"accepted-count shortfall in {len(accepted_shortfall)} cell(s) "
+                              "(quota targets count accepted episodes/aircraft, D-046); "
+                              "see the accepted_shortfall table")
     total_elapsed_seconds = time.perf_counter() - started_at
     manifest.update({
         "output_directory": str(target),
@@ -305,6 +346,8 @@ def write_overlay_tables(
         "overlay_merge_scope": "lexicographic_overlay_key; at_most_one_selected_overlay_per_segment; conflicts_logged_as_overlay_conflict",
         "resolved_plan": [dict(entry) for entry in resolved_plan] if resolved_plan is not None else None,
         "selection_mode": "ranked_quota" if quota_targets is not None else "bernoulli",
+        "plan_source": dict(plan_source) if plan_source is not None else None,
+        "attacked_rows_output": "one_to_one_with_source (accepted-segments-only deferred to full scale, D-045)",
         "quota": quota_report,
         "total_elapsed_seconds": total_elapsed_seconds,
         "chunk_seconds_summary": _chunk_seconds_summary(chunk_seconds),

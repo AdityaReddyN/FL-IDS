@@ -217,10 +217,13 @@ def select_quota_segments(
     *,
     grid_degrees: float = 5.0,
     fail_on_capacity_shortfall: bool = True,
+    max_episodes_per_aircraft: int = 3,
 ) -> dict:
     """Return the chosen segments and a per-cell requested/feasible/realized report.
 
-    ``chosen`` is a set of ``(icao24, segment_id, overlay_key)`` for pass 2.
+    ``chosen`` is a set of ``(icao24, segment_id, overlay_key)`` for pass 2. At
+    most ``max_episodes_per_aircraft`` episodes per aircraft per cell are taken
+    (D-046), so one busy aircraft cannot dominate a cell.
     """
     keyed = add_natural_keys(df).sort_values(
         ["icao24", "segment_id", "time"], kind="mergesort"
@@ -250,13 +253,17 @@ def select_quota_segments(
             want_episodes = int(target.episodes.get(split, 0))
             want_aircraft = int(target.unique_aircraft.get(split, 0))
             picked_aircraft: set[str] = set()
+            per_aircraft: dict[str, int] = {}
             picked_segments = 0
             for _u, icao, segment_id in candidates:
                 episodes_estimate = picked_segments * episodes_per_segment
                 if episodes_estimate >= want_episodes and len(picked_aircraft) >= want_aircraft:
                     break
+                if per_aircraft.get(icao, 0) * episodes_per_segment >= max_episodes_per_aircraft:
+                    continue  # cap episodes per aircraft per cell (D-046)
                 chosen.add((icao, segment_id, overlay.overlay_key))
                 picked_aircraft.add(icao)
+                per_aircraft[icao] = per_aircraft.get(icao, 0) + 1
                 picked_segments += 1
             realized_episodes = picked_segments * episodes_per_segment
             cell = {

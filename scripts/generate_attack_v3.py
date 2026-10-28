@@ -166,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
             resolved_plan=resolved_plan,
             quota_targets=quota_targets,
             conflict_priority=[o.overlay_key for o in overlays] if args.conflict_order == "plan" else None,
+            plan_source=(load_run_plan(args.plan).get("source") if args.plan is not None else None),
             max_segments_per_chunk=args.segments_per_chunk,
             repo_root=ROOT,
             progress_callback=progress_callback,

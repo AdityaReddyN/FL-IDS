@@ -288,6 +288,23 @@ def validate(run_dir: Path, source_path: Path, split_path: Path | None = None) -
         recall.setdefault(str(tier), {})[str(split)] = {"n": len(hits), "boundary_recall": (sum(hits) / len(hits)) if hits else None}
     record("oracle_boundary_recall_by_tier_split", True, recall=recall)
 
+    # (n) per-cell window strata (attacked/ambiguous/boundary/interior-only) and
+    # interior-only non-empty for the 600/900 s cells (D-046).
+    strata = {}
+    long_missing_interior = []
+    w = tables["windows"]
+    if not w.empty and not episodes.empty:
+        ep_idx = episodes.drop_duplicates("episode_id").set_index("episode_id")
+        joined = w.join(ep_idx[["overlay_key", "duration_seconds_requested"]], on="episode_id")
+        for key, grp in joined.dropna(subset=["overlay_key"]).groupby("overlay_key", sort=False):
+            counts = grp.groupby(["label", "stratum"]).size()
+            strata[str(key)] = {f"{label}|{stratum}": int(c) for (label, stratum), c in counts.items()}
+            dur = float(grp["duration_seconds_requested"].iloc[0])
+            if dur >= 600 and int((grp["stratum"] == "interior_only").sum()) == 0:
+                long_missing_interior.append(str(key))
+    record("per_cell_window_strata_interior_nonempty", not long_missing_interior,
+           long_cells_missing_interior_only=long_missing_interior, strata=strata)
+
     # (j) per-family displacement quantiles (descriptive; always passes).
     quant = {}
     disp_all = _displacement_m(at["orig_lat"], at["orig_lon"], at["mod_lat"], at["mod_lon"])

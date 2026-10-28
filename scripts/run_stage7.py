@@ -108,21 +108,55 @@ def benchmark(args) -> list[str]:
     return []
 
 
-def _generate_and_validate(label, plan, out_name, conflict_order, args) -> list[str]:
+def _report_cells(label: str, run_dir: Path) -> None:
+    """Print per-cell accepted counts and shortfalls from a run manifest (D-046)."""
+    mf = run_dir / "manifest.json"
+    if not mf.exists():
+        return
+    quota = json.loads(mf.read_text(encoding="utf-8")).get("quota") or {}
+    rows = quota.get("accepted_by_cell") or []
+    short = quota.get("accepted_shortfall") or []
+    if rows:
+        print(f"  [{label}] per-cell accepted: {len(rows)} cells; shortfall/descriptive cells: {len(short)}")
+        for r in short:
+            print(f"    - {r['overlay_key']}/{r['split']}: episodes {r['accepted_episodes']}/{r['target_episodes']}, "
+                  f"aircraft {r['accepted_unique_aircraft']}/{r['target_unique_aircraft']}, descriptive_only={r['descriptive_only']}")
+
+
+def _generate_and_validate(label, plan, out_name, conflict_order, subset, args) -> list[str]:
     out = ROOT / "data" / "attack_generation_v3" / out_name
     gen = [PY, str(ROOT / "scripts" / "generate_attack_v3.py"), "--plan", str(plan),
-           "--seed", str(args.seed), "--out", str(out), "--input", str(args.subset),
+           "--seed", str(args.seed), "--out", str(out), "--input", str(subset),
            "--progress-log", str(LOGS / f"{label}_progress.jsonl")]
     if conflict_order == "plan":
         gen += ["--conflict-order", "plan"]
     if _run(gen, LOGS / f"{label}_generate.log") != 0:
-        return [f"{label}: generation failed"]
+        return [f"{label}: generation failed (see logs/stage7/{label}_generate.log)"]
+    _report_cells(label, out)
     report = ROOT / "results" / "stage7" / f"validate_{label}.json"
     val = [PY, str(ROOT / "scripts" / "validate_generated_dataset.py"), str(out),
-           "--source", str(args.subset), "--split", str(args.split), "--report", str(report)]
+           "--source", str(subset), "--split", str(args.split), "--report", str(report)]
     if _run(val, LOGS / f"{label}_validate.log") != 0:
         return [f"{label}: validation FAILED (see {report})"]
     return []
+
+
+def _pilot(args) -> list[str]:
+    """Plan A scaled to ~20 episodes / ~15 aircraft per cell on a ~1% subset (D-046)."""
+    import importlib.util
+    import yaml
+    sub1 = ROOT / "data" / "processed" / "hdd_clean_v1_subset_01pct.parquet"
+    if not sub1.exists():
+        spec = importlib.util.spec_from_file_location("mws", ROOT / "scripts" / "make_working_subset.py")
+        mws = importlib.util.module_from_spec(spec); spec.loader.exec_module(mws)
+        mws.build_subset(ROOT / "data" / "processed" / "hdd_clean_v1", sub1, 0.01, args.seed)
+    plan = yaml.safe_load(args.plan_a.read_text(encoding="utf-8"))
+    for ov in plan["overlays"]:
+        ov["quota_target"] = {"episodes": 20, "unique_aircraft": 15}
+    pilot_plan = ROOT / "results" / "stage7" / "pilot_plan_A.yaml"
+    pilot_plan.parent.mkdir(parents=True, exist_ok=True)
+    pilot_plan.write_text(yaml.safe_dump(plan, sort_keys=False), encoding="utf-8")
+    return _generate_and_validate("pilot", pilot_plan, "stage7_pilot_A", "plan", sub1, args)
 
 
 def main() -> int:
@@ -144,10 +178,10 @@ def main() -> int:
     args = parser.parse_args()
 
     pre_gen = [("preflight", preflight), ("capacity", capacity), ("benchmark", benchmark)]
-    gen = [("pilot", lambda a: _generate_and_validate("pilot", a.plan_a, "stage7_pilot_A", "plan", a)),
-           ("full_A", lambda a: _generate_and_validate("A", a.plan_a, "stage7_A", "plan", a)),
-           ("B", lambda a: _generate_and_validate("B", a.plan_b, "stage7_B", "key", a)),
-           ("C", lambda a: _generate_and_validate("C", a.plan_c, "stage7_C", "key", a))]
+    gen = [("pilot", _pilot),
+           ("full_A", lambda a: _generate_and_validate("A", a.plan_a, "stage7_A", "plan", a.subset, a)),
+           ("B", lambda a: _generate_and_validate("B", a.plan_b, "stage7_B", "key", a.subset, a)),
+           ("C", lambda a: _generate_and_validate("C", a.plan_c, "stage7_C", "key", a.subset, a))]
     phases = pre_gen + gen
 
     if args.dry_run:

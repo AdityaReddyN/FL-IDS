@@ -23,13 +23,23 @@ def config():
 
 @pytest.mark.parametrize("kind", ["A", "B", "C"])
 def test_plan_loads_validates_and_builds(config, kind):
-    plan = load_run_plan(PLANS[kind])  # validates structure
+    plan = load_run_plan(PLANS[kind])  # validates structure (incl. overlay_key uniqueness)
     overlays = overlays_from_plan(config, plan)
     assert overlays
-    # The constant_deviation overlay uses the ratio tier and the plan's p95 table.
+    # Every constant_deviation overlay uses a ratio tier and the plan's p95 table.
     const = [o for o in overlays if o.attack_family == "constant_deviation"]
-    assert const and const[0].tier_ratio_r == 1.0 and const[0].magnitude_m is None
-    assert const[0].band_p95_m["100_200"] == 1653.6
+    assert const
+    for o in const:
+        assert o.tier_ratio_r is not None and o.magnitude_m is None
+        assert o.band_p95_m["100_200"] == 1653.6
+    assert len({o.overlay_key for o in overlays}) == len(overlays)
+
+
+def test_plan_A_is_the_joint_quota_run_with_floor_rung(config):
+    overlays = overlays_from_plan(config, load_run_plan(PLANS["A"]))
+    assert len(overlays) == 25
+    ratios = {o.tier_ratio_r for o in overlays if o.attack_family == "constant_deviation"}
+    assert {0.5, 0.9, 1.0, 1.1, 2.0} <= ratios  # floor..gross ladder present
 
 
 def test_plan_A_is_quota_and_BC_are_bernoulli(config):

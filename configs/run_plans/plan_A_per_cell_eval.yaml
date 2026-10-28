@@ -1,27 +1,189 @@
-# D-039 kind (A): per-cell evaluation overlay, ONE overlay per run, quota-filled.
-# Generate one such plan per (family, tier, duration, onset) cell; this file is
-# the constant_deviation / moderate-r / 120 s / abrupt cell as an example.
-#
-# Ratio-tier r values are approved (D-044: floor 0.5 / subtle 0.9 / moderate
-# 1.0 / blatant 1.1 / gross 2.0). Generation still requires a clean committed
-# tree, per-run E-### registration, and content validation (S7). band_p95_m below are
-# the measured HDD train-split residual p95 (gate1b_v2) and MUST match the
-# source/split fingerprint of the clean table used at generation.
+# D-039 kind (A) as a single joint quota run (D-045/D-046): one overlay per
+# segment, resolved in plan (priority) order. Ratio tiers r (D-044); gaussian/
+# gradual/freeze/replay fixed; altitude_constant_deviation is PROVISIONAL.
+# band_p95_m is the full-HDD train-split residual p95 (gate1b_v2); both the
+# full-HDD and the subset fingerprints are recorded under source for provenance.
+# Per-cell targets come from config quota_mode. NOT auto-generated: human-approved
+# (approved_cells.json). Generation still requires a clean tree + E-### + validation.
 plan_version: 1
-name: per_cell_eval_constant_moderate_120s_abrupt
+name: per_cell_evaluation_joint_quota
 source:
   clean_dir: data/processed/hdd_clean_v1
-  note: band_p95_m is tied to this source/split; regenerate if the source changes.
+  full_hdd_clean_fingerprint: 66437b487ed0c90f65288107c52adb40090a3c6772fc1e54850edf71a76f0a47
+  subset: data/processed/hdd_clean_v1_subset_10pct.parquet
+  subset_content_fingerprint: 344f61800a8fabe6d8de3e2bb31f1a0b9be103ba88cb9b306280f885d2e4ee8f
+conflict_order: plan
+notes: D-046. Kind A joint quota run on the 10% subset; one overlay per segment in
+  plan (priority) order. Ratio tiers r (D-044). altitude_constant_deviation is PROVISIONAL.
+  band_p95_m from the full-HDD train split (gate1b_v2).
 band_p95_m:
-  "0_50": 476.7
-  "50_100": 829.3
-  "100_200": 1653.6
-  "200_plus": 2382.6
+  '0_50': 476.7
+  '50_100': 829.3
+  '100_200': 1653.6
+  200_plus: 2382.6
 overlays:
-  - family: constant_deviation
-    tier: moderate
-    tier_ratio_r: 1.0            # moderate (D-044)
-    duration_seconds: 120
-    onset_mode: abrupt
-    quota_target: true           # use config quota_mode per-cell targets
-    episodes_per_segment: 1
+- family: constant_deviation
+  tier: floor
+  tier_ratio_r: 0.5
+  duration_seconds: 120
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_floor_ab_120
+- family: constant_deviation
+  tier: subtle
+  tier_ratio_r: 0.9
+  duration_seconds: 120
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_subtle_ab_120
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 120
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_moderate_ab_120
+- family: constant_deviation
+  tier: blatant
+  tier_ratio_r: 1.1
+  duration_seconds: 120
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_blatant_ab_120
+- family: constant_deviation
+  tier: gross_positive_control
+  tier_ratio_r: 2.0
+  duration_seconds: 120
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_gross_positive_control_ab_120
+- family: constant_deviation
+  tier: floor
+  tier_ratio_r: 0.5
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_floor_rp_120
+- family: constant_deviation
+  tier: subtle
+  tier_ratio_r: 0.9
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_subtle_rp_120
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_moderate_rp_120
+- family: constant_deviation
+  tier: blatant
+  tier_ratio_r: 1.1
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_blatant_rp_120
+- family: constant_deviation
+  tier: gross_positive_control
+  tier_ratio_r: 2.0
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_gross_positive_control_rp_120
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 600
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_moderate_ab_600
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 600
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_moderate_rp_600
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 900
+  onset_mode: abrupt
+  quota_target: true
+  overlay_key: const_moderate_ab_900
+- family: constant_deviation
+  tier: moderate
+  tier_ratio_r: 1.0
+  duration_seconds: 900
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: const_moderate_rp_900
+- family: random_gaussian_deviation
+  tier: moderate
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: gauss_moderate_120
+- family: random_gaussian_deviation
+  tier: blatant
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: gauss_blatant_120
+- family: gradual_deviation
+  tier: moderate
+  duration_seconds: 600
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: gradual_moderate_600
+- family: gradual_deviation
+  tier: moderate
+  duration_seconds: 900
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: gradual_moderate_900
+- family: freeze_fixed_value
+  tier: moderate
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: freeze_moderate_120
+- family: freeze_fixed_value
+  tier: moderate
+  duration_seconds: 600
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: freeze_moderate_600
+- family: replay_partial_field
+  tier: moderate
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: rpart_moderate_120
+- family: replay_partial_field
+  tier: moderate
+  duration_seconds: 600
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: rpart_moderate_600
+- family: replay_full_field
+  tier: moderate
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: rfull_moderate_120
+- family: replay_full_field
+  tier: moderate
+  duration_seconds: 600
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: rfull_moderate_600
+- family: altitude_constant_deviation
+  tier: moderate
+  altitude_variant: baro_only
+  duration_seconds: 120
+  onset_mode: linear_mix
+  quota_target: true
+  overlay_key: alt_baro_moderate_120

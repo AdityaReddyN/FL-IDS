@@ -1,0 +1,34 @@
+{
+  "approved": true,
+  "date": "2026-10-28",
+  "decision": "D-046",
+  "plan": "configs/run_plans/plan_A_per_cell_eval.yaml",
+  "plan_sha256": "e6bc2ff71db888887f00a4dbf7bfbe0a29846b1264d5349c250520f72ad1cfc3",
+  "kind": "A (per-cell evaluation, single joint quota run, plan-order conflict resolution)",
+  "n_overlays": 25,
+  "subset": "data/processed/hdd_clean_v1_subset_10pct.parquet",
+  "subset_content_fingerprint": "344f61800a8fabe6d8de3e2bb31f1a0b9be103ba88cb9b306280f885d2e4ee8f",
+  "full_hdd_clean_fingerprint": "66437b487ed0c90f65288107c52adb40090a3c6772fc1e54850edf71a76f0a47",
+  "per_cell_targets": {
+    "episodes": {
+      "train": 300,
+      "val": 150,
+      "test": 150
+    },
+    "unique_aircraft": {
+      "train": 200,
+      "val": 100,
+      "test": 100
+    }
+  },
+  "max_episodes_per_aircraft_per_cell": 3,
+  "descriptive_only_rule": "test cells with < 100 unique aircraft or < 150 accepted episodes",
+  "conditions": [
+    "quotas count ACCEPTED episodes and accepted unique aircraft; accepted shortfall fails the run (or is reported) when fail_on_capacity_shortfall",
+    "pilot reports per-cell realized ACCEPTED counts after joint priority-order assignment and flags under-target cells",
+    "max 3 episodes per aircraft per cell",
+    "provenance records both the full-HDD train-split fingerprint (band p95 source) and the subset fingerprint",
+    "validator reports per-cell window strata (attacked/ambiguous/boundary/interior-only) and confirms interior-only is non-empty for 600/900 s cells"
+  ],
+  "notes": "altitude_constant_deviation is PROVISIONAL. Kind B tau=0.005 is an assumed prevalence, not calibrated."
+}

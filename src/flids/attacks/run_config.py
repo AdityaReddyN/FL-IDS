@@ -25,6 +25,7 @@ def overlay_from_config(
     onset_mode: str = "linear_mix",
     tier_ratio_r: float | None = None,
     band_p95_m: dict | None = None,
+    overlay_key: str | None = None,
 ) -> OverlaySpec:
     """Build one overlay from approved config values; does not read YAML.
 
@@ -33,9 +34,12 @@ def overlay_from_config(
     ``tier_ratio_r`` is given (constant_deviation only), the fixed-meter
     magnitude is replaced by the ratio-tier lookup (D-043).
     """
+    ratio_mode = attack_family == "constant_deviation" and tier_ratio_r is not None
     if attack_family not in _FAMILIES:
         raise ValueError(f"unsupported attack family: {attack_family}")
-    if tier not in config["tiers"]["horizontal_meters"]:
+    # Ratio-tier constant overlays take their magnitude from r, so the tier may
+    # be a ratio-ladder rung (e.g. "floor") absent from the fixed-meter table.
+    if tier not in config["tiers"]["horizontal_meters"] and not ratio_mode:
         raise ValueError(f"unsupported tier: {tier}")
     if attack_family == "altitude_constant_deviation" and altitude_variant not in {"baro_only", "baro_plus_geo"}:
         raise ValueError(f"unsupported altitude variant: {altitude_variant}")
@@ -52,13 +56,12 @@ def overlay_from_config(
     magnitude = sigma = shift = None
     gaussian = config["attacks"]["gaussian"]
     kappa = float(gaussian["eq12_noise_kappa_by_tier"].get(tier, 0.0))
-    if attack_family in {"constant_deviation", "gradual_deviation"}:
+    if attack_family == "gradual_deviation" or (attack_family == "constant_deviation" and not ratio_mode):
         magnitude = float(tiers["horizontal_meters"][tier])
-    if attack_family == "constant_deviation" and tier_ratio_r is not None:
-        magnitude = None  # per-episode ratio-tier lookup in the assembler
-    elif attack_family == "random_gaussian_deviation":
+    # ratio_mode leaves magnitude None (per-episode ratio-tier lookup in the assembler).
+    if attack_family == "random_gaussian_deviation":
         sigma = float(gaussian["deviation_sigma_meters_by_tier"][tier])
-    elif attack_family == "altitude_constant_deviation":
+    if attack_family == "altitude_constant_deviation":
         shift = float(tiers["altitude_residual_calibration_meters"]["shared_shift_both_variants"][tier])
     subtype = {
         "constant_deviation": "constant",
@@ -90,6 +93,7 @@ def overlay_from_config(
         episodes_per_segment=episodes_per_segment,
         tier_ratio_r=tier_ratio_r if attack_family == "constant_deviation" else None,
         band_p95_m=dict(band_p95_m) if (band_p95_m is not None and attack_family == "constant_deviation" and tier_ratio_r is not None) else None,
+        overlay_key=overlay_key,
         dataset_mode=config["region"]["primary_dataset_mode"],
         geoaltitude_glitch_threshold_m=float(glitch) if attack_family == "altitude_constant_deviation" and altitude_variant == "baro_plus_geo" and glitch is not None else None,
         min_gap_seconds=float(episodes["minimum_inter_episode_gap_seconds"]),
@@ -125,6 +129,7 @@ def _overlay_from_entry(config: dict, entry: dict, band_p95_m: dict | None = Non
         onset_mode=entry.get("onset_mode", "linear_mix"),
         tier_ratio_r=entry.get("tier_ratio_r"),
         band_p95_m=band_p95_m,
+        overlay_key=entry.get("overlay_key"),
     )
 
 

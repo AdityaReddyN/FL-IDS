@@ -70,6 +70,25 @@ def test_quota_honors_unique_aircraft_target():
     assert cell["realized_segments"] >= 8  # must keep picking to reach 8 aircraft
 
 
+def test_quota_caps_episodes_per_aircraft():
+    # One aircraft with many eligible segments; cap must limit it to 3.
+    rows = []
+    for s in range(10):  # 10 segments for one aircraft, each 60 rows
+        for i in range(60):
+            rows.append({"icao24": "a00000", "segment_id": s, "time": i * 10,
+                         "lat": 30.0 + i * 0.001, "lon": 10.0 + i * 0.001,
+                         "velocity": 200.0, "heading": 90.0, "vertrate": 1.0,
+                         "baroaltitude": 3000.0 + i, "geoaltitude": 3010.0 + i,
+                         "onground": False, "contact_lag_seconds": 0.0, "contact_lag_missing": False,
+                         **{f"{f}_missing": False for f in FEATURES}})
+    df = pd.DataFrame(rows)
+    ov = overlay()
+    targets = {ov.overlay_key: target(8, 0)}  # want 8 episodes, but one aircraft
+    result = select_quota_segments(df, [ov], 7, lambda _i: "train", targets,
+                                   fail_on_capacity_shortfall=False, max_episodes_per_aircraft=3)
+    assert len(result["chosen"]) == 3  # capped at 3 for the single aircraft
+
+
 def test_quota_shortfall_raises_with_per_cell_table():
     ov = overlay()
     targets = {ov.overlay_key: target(999, 0)}  # more than the 12 eligible segments
