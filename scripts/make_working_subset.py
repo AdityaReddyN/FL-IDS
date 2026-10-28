@@ -72,8 +72,6 @@ def build_subset(clean_dir: Path, out_path: Path, fraction: float, seed: int) ->
         "sorted_by": ["icao24", "segment_id", "time"],
         "note": "file order == generator source_row_id order; use as both generation input and validator --source",
     }
-    out_path.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-
     problems = []
     if len(dates) < 4:
         problems.append(f"only {len(dates)} dates present")
@@ -83,6 +81,7 @@ def build_subset(clean_dir: Path, out_path: Path, fraction: float, seed: int) ->
         problems.append("no cells covered")
     manifest["coverage_ok"] = not problems
     manifest["coverage_problems"] = problems
+    out_path.with_suffix(".manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     return manifest
 
 
