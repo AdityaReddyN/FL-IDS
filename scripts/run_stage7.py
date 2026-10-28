@@ -127,7 +127,7 @@ def _generate_and_validate(label, plan, out_name, conflict_order, subset, args) 
     out = ROOT / "data" / "attack_generation_v3" / out_name
     gen = [PY, str(ROOT / "scripts" / "generate_attack_v3.py"), "--plan", str(plan),
            "--seed", str(args.seed), "--out", str(out), "--input", str(subset),
-           "--progress-log", str(LOGS / f"{label}_progress.jsonl")]
+           "--split", str(args.split), "--progress-log", str(LOGS / f"{label}_progress.jsonl")]
     if conflict_order == "plan":
         gen += ["--conflict-order", "plan"]
     if _run(gen, LOGS / f"{label}_generate.log") != 0:

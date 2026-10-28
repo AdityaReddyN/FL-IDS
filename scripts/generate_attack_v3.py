@@ -37,6 +37,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "attack_v3_stage1.yaml")
     parser.add_argument("--out", type=Path, required=True, help="new run directory under data/attack_generation_v3")
     parser.add_argument("--input", type=Path, default=None, help="override the config cleaned-table input (e.g. a working subset)")
+    parser.add_argument("--split", type=Path, default=None, help="override the config aircraft split (e.g. the HDD split)")
     parser.add_argument("--conflict-order", choices=("key", "plan"), default="key",
                         help="overlay conflict resolution: lexicographic key (default) or run-plan order (kind A joint run)")
     parser.add_argument("--dry-run", action="store_true", help="print counts only; write nothing")
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     input_path = args.input if args.input is not None else Path(config["input"]["cleaned_table"])
     if not input_path.is_absolute():
         input_path = ROOT / input_path
-    split_path = Path(config["splits"]["fixed_aircraft_split"])
+    split_path = args.split if args.split is not None else Path(config["splits"]["fixed_aircraft_split"])
     if not split_path.is_absolute():
         split_path = ROOT / split_path
     split_map = load_split_aircraft(split_path)
